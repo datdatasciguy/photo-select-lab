@@ -1,0 +1,8 @@
+{
+  "method": "dhash-rgb-complete-link",
+  "max_hash_distance": 8,
+  "max_pixel_rmse": 0.08,
+  "images": 7,
+  "groups": 4,
+  "errors": 0
+}
