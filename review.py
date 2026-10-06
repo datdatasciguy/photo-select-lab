@@ -1,7 +1,7 @@
 import argparse
 import json
-from pathlib import Path
 import warnings
+from pathlib import Path
 
 from PIL import Image
 
@@ -9,9 +9,9 @@ from features import scan_images
 from group import group_images, review_order
 from report import write_report
 
-
 def run(folder, output, max_hash_distance=8, max_pixel_rmse=0.08):
-    root, output = Path(folder).resolve(), Path(output).resolve()
+    root = Path(folder).resolve()
+    output = Path(output).resolve()
     if not root.is_dir():
         raise ValueError("Input folder does not exist")
     if output.is_relative_to(root):
@@ -20,11 +20,15 @@ def run(folder, output, max_hash_distance=8, max_pixel_rmse=0.08):
         raise ValueError("Choose an empty output folder to preserve previous reports")
     if not 0 <= max_hash_distance <= 64 or not 0 <= max_pixel_rmse <= 1:
         raise ValueError("Hash distance must be 0..64 and pixel RMSE must be 0..1")
+
+    # Read images and collect any files we could not process
     with warnings.catch_warnings():
         warnings.simplefilter("error", Image.DecompressionBombWarning)
         records, errors = scan_images(root)
     if not records:
         raise ValueError(f"No readable supported images found ({len(errors)} errors)")
+
+    # Group, rank and write the review
     groups = group_images(records, max_hash_distance, max_pixel_rmse)
     rows = review_order(records, groups)
     write_report(root, output, rows, errors)
@@ -37,8 +41,8 @@ def run(folder, output, max_hash_distance=8, max_pixel_rmse=0.08):
                                         encoding="utf-8")
     return settings
 
-
 def main():
+    # Arguments
     parser = argparse.ArgumentParser(description="Group similar photos for local review.")
     parser.add_argument("folder", type=Path)
     parser.add_argument("--output", type=Path, required=True)
@@ -51,7 +55,6 @@ def main():
         parser.exit(1, f"{error}\n")
     print(f'{summary["images"]} images in {summary["groups"]} groups. '
           f'Report: {args.output / "index.html"}')
-
 
 if __name__ == "__main__":
     main()

@@ -2,7 +2,6 @@ import math
 
 import numpy as np
 
-
 def similar(left, right, max_hash_distance=8, max_pixel_rmse=0.08):
     if left["sha256"] == right["sha256"]:
         return True
@@ -14,7 +13,6 @@ def similar(left, right, max_hash_distance=8, max_pixel_rmse=0.08):
     rmse = np.sqrt(np.mean((left["signature"] - right["signature"]) ** 2))
     return bool(rmse <= max_pixel_rmse)
 
-
 def group_images(records, max_hash_distance=8, max_pixel_rmse=0.08):
     if not 0 <= max_hash_distance <= 64:
         raise ValueError("Hash distance must be between 0 and 64")
@@ -22,7 +20,7 @@ def group_images(records, max_hash_distance=8, max_pixel_rmse=0.08):
         raise ValueError("Pixel RMSE must be between 0 and 1")
     groups = []
     for index, row in enumerate(records):
-        # Complete-link membership prevents a chain of weak matches merging a shoot.
+        # Compare with every image so loose matches do not join separate groups
         for group in groups:
             if all(similar(row, records[other], max_hash_distance, max_pixel_rmse)
                    for other in group):
@@ -32,15 +30,15 @@ def group_images(records, max_hash_distance=8, max_pixel_rmse=0.08):
             groups.append([index])
     return groups
 
+def quality_key(row):
+    clipped_fraction = row["dark_fraction"] + row["bright_fraction"]
+    return -row["sharpness"], clipped_fraction, row["file"]
 
 def review_order(records, groups):
     rows = []
+    # Rank by sharpness, then clipped pixels; filename breaks ties
     for number, group in enumerate(groups, 1):
-        ordered = sorted(group, key=lambda i: (
-            -records[i]["sharpness"],
-            records[i]["dark_fraction"] + records[i]["bright_fraction"],
-            records[i]["file"],
-        ))
+        ordered = sorted(group, key=lambda index: quality_key(records[index]))
         for rank, index in enumerate(ordered, 1):
             row = records[index]
             rows.append({

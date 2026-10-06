@@ -1,14 +1,14 @@
-from pathlib import Path
 import argparse
+from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter
-
 
 def create_demo(output):
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
     if any(output.iterdir()):
         raise ValueError("Choose an empty demo folder")
+    # Make a scene with sharp edges and a few variations
     scene = Image.new("RGB", (640, 420), "#c4d8e5")
     draw = ImageDraw.Draw(scene)
     draw.rectangle((0, 235, 640, 420), fill="#477c68")
@@ -21,6 +21,8 @@ def create_demo(output):
     scene.save(output / "scene_copy.png")
     scene.save(output / "scene_jpeg.jpg", quality=90)
     scene.filter(ImageFilter.GaussianBlur(3)).save(output / "scene_soft.png")
+
+    # Add unrelated images to check the grouping
     other = Image.new("RGB", (640, 420), "#202944")
     draw = ImageDraw.Draw(other)
     for x in range(25, 640, 65):
@@ -29,8 +31,11 @@ def create_demo(output):
     Image.new("RGB", (640, 420), "#d32b32").save(output / "red.png")
     Image.new("RGB", (640, 420), "#2965d1").save(output / "blue.png")
 
-
-if __name__ == "__main__":
+def main():
+    # Arguments
     parser = argparse.ArgumentParser(description="Create original procedural diagnostic images.")
     parser.add_argument("output", type=Path)
     create_demo(parser.parse_args().output)
+
+if __name__ == "__main__":
+    main()

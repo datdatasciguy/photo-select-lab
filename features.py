@@ -6,7 +6,6 @@ from PIL import Image, ImageOps
 
 EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".bmp"}
 
-
 def open_rgb(path):
     with Image.open(path) as image:
         if getattr(image, "n_frames", 1) > 1:
@@ -17,20 +16,20 @@ def open_rgb(path):
             image = Image.alpha_composite(background, image.convert("RGBA"))
         return image.convert("RGB")
 
-
 def difference_hash(image):
     gray = np.asarray(image.convert("L").resize((9, 8), Image.Resampling.LANCZOS))
+    # Compare neighboring pixels to build the hash
     bits = (gray[:, 1:] > gray[:, :-1]).ravel()
     value = 0
     for bit in bits:
         value = (value << 1) | int(bit)
     return f"{value:016x}"
 
-
 def image_features(image):
     width, height = image.size
     if min(width, height) < 3:
         raise ValueError("Image must be at least 3 pixels in each dimension")
+    # Measure sharpness at a common maximum size
     preview = image.copy()
     preview.thumbnail((768, 768), Image.Resampling.LANCZOS)
     gray = np.asarray(preview.convert("L"), dtype=np.float64) / 255
@@ -53,7 +52,6 @@ def image_features(image):
         "signature": small.ravel(),
     }
 
-
 def file_digest(path):
     digest = sha256()
     with Path(path).open("rb") as stream:
@@ -61,10 +59,10 @@ def file_digest(path):
             digest.update(block)
     return digest.hexdigest()
 
-
 def scan_images(folder):
     root = Path(folder).resolve()
-    records, errors = [], []
+    records = []
+    errors = []
     paths = sorted(p for p in root.rglob("*")
                    if p.is_file() and p.suffix.lower() in EXTENSIONS)
     for path in paths:
