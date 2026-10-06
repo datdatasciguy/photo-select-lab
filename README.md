@@ -40,6 +40,12 @@ verdict. A perfectly sharp photo can still be the one you don't want.
 The [notebook](notebooks/review_baseline.ipynb) walks through blur, color, and a
 few grouping settings. You'll need Jupyter if you want to run it yourself.
 
+## Speed check
+
+Run `python benchmark.py` to time scanning and grouping on throwaway generated
+images. It prints your machine details and median times for a few batch sizes.
+These shapes are useful for timing, but a real photo folder may behave differently.
+
 ## Things I'd like to add
 
 - Compare this with image embeddings on real duplicate pairs.
