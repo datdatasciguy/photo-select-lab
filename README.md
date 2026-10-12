@@ -46,16 +46,35 @@ Run `python benchmark.py` to time scanning and grouping on throwaway generated
 images. It prints your machine details and median times for a few batch sizes.
 These shapes are useful for timing, but a real photo folder may behave differently.
 
+## Local video studio
+
+The first [studio viewer](studio/) is ready for reviewing an original clip beside
+an optional result. Choose or drop video files, set a start and end time, scrub
+and nudge through the clip, and play both previews together. The page shows clip
+duration and resolution. It keeps selected files in your browser session; the
+local server only serves the studio files and bundled demo.
+
+From the repo folder:
+
+```bash
+python -m http.server 8767 --bind 127.0.0.1 --directory studio
+```
+
+Open `http://127.0.0.1:8767/` and click **Load procedural demo**, or
+choose your own videos. The two small MP4 demos are moving test shapes and a
+grayscale variation. You can regenerate them with `python studio/make_demo.py`
+if FFmpeg is installed. No model runs in this version; mask previews, saved jobs,
+and optional render engines are next steps.
+
 ## Things I'd like to add
 
 - Compare this with image embeddings on real duplicate pairs.
 - Learn from which shots someone actually chooses to keep.
-- Bring over the useful parts of my local face-swap/editing GUI: clip selection,
-  mask previews, before/after comparison, and render progress.
+- Extend the studio with mask previews, saved settings, and real render progress
+  when an optional engine is connected.
 
-That GUI started as an AI-assisted side project around existing models. The
-public version still needs some work. Model connections will be optional, so
-trying the viewer won't mean downloading half a hard drive first.
+The studio grew out of an AI-assisted side project around existing models.
+Trying this viewer doesn't need a GPU or a model download.
 
 For now, this works best on one shoot at a time. Big crops, rotation, and major
 lighting changes can confuse the grouping. No RAW support yet.
