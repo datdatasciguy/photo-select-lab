@@ -72,11 +72,118 @@ function updateRange(changed) {
   seekTo(start);
 }
 
+const maskCanvas = $('mask-canvas');
+const maskPoints = [];
+let maskTime = null;
+let maskMode = 'include';
+
+function sourceRect() {
+  if (!source.videoWidth || !source.videoHeight) return null;
+  const width = maskCanvas.clientWidth;
+  const height = maskCanvas.clientHeight;
+  const scale = Math.min(width / source.videoWidth, height / source.videoHeight);
+  const videoWidth = source.videoWidth * scale;
+  const videoHeight = source.videoHeight * scale;
+  return { x: (width - videoWidth) / 2, y: (height - videoHeight) / 2,
+           width: videoWidth, height: videoHeight };
+}
+
+function buildMask() {
+  const canvas = document.createElement('canvas');
+  canvas.width = source.videoWidth;
+  canvas.height = source.videoHeight;
+  const context = canvas.getContext('2d');
+  const shortSide = Math.min(canvas.width, canvas.height);
+  for (const kind of ['include', 'exclude']) {
+    context.globalCompositeOperation = kind === 'include' ? 'source-over' : 'destination-out';
+    context.fillStyle = '#ffffff';
+    for (const point of maskPoints.filter((item) => item.kind === kind)) {
+      context.beginPath();
+      context.arc(point.x * canvas.width, point.y * canvas.height,
+                  point.radius * shortSide, 0, Math.PI * 2);
+      context.fill();
+    }
+  }
+  context.globalCompositeOperation = 'source-over';
+  return canvas;
+}
+
+function updateMaskReadout() {
+  const include = maskPoints.filter((point) => point.kind === 'include').length;
+  const exclude = maskPoints.length - include;
+  $('mask-frame').disabled = maskPoints.length === 0;
+  $('mask-clear').disabled = maskPoints.length === 0;
+  $('mask-download').disabled = include === 0;
+  $('mask-readout').textContent = maskPoints.length
+    ? include + ' include, ' + exclude + ' exclude at ' + timeLabel(maskTime) +
+      '. The PNG is white inside the draft and transparent elsewhere.'
+    : clips.source ? 'Pause and click the original preview to mark one frame.'
+      : 'Load an original clip to start.';
+}
+
+function redrawMask() {
+  const ratio = window.devicePixelRatio || 1;
+  const width = Math.max(1, Math.round(maskCanvas.clientWidth * ratio));
+  const height = Math.max(1, Math.round(maskCanvas.clientHeight * ratio));
+  if (maskCanvas.width !== width || maskCanvas.height !== height) {
+    maskCanvas.width = width;
+    maskCanvas.height = height;
+  }
+  const context = maskCanvas.getContext('2d');
+  context.setTransform(ratio, 0, 0, ratio, 0, 0);
+  context.clearRect(0, 0, maskCanvas.clientWidth, maskCanvas.clientHeight);
+  const rect = sourceRect();
+  if (!rect || !maskPoints.length || !source.paused ||
+      Math.abs(source.currentTime - maskTime) > 0.05) return;
+  context.globalAlpha = 0.35;
+  context.drawImage(buildMask(), rect.x, rect.y, rect.width, rect.height);
+  context.globalAlpha = 1;
+  for (const point of maskPoints) {
+    context.beginPath();
+    context.arc(rect.x + point.x * rect.width, rect.y + point.y * rect.height, 5, 0, Math.PI * 2);
+    context.fillStyle = point.kind === 'include' ? '#8bdcc9' : '#ffad9d';
+    context.fill();
+    context.lineWidth = 2;
+    context.strokeStyle = '#10202a';
+    context.stroke();
+  }
+}
+
+function resetMask() {
+  maskPoints.length = 0;
+  maskTime = null;
+  updateMaskReadout();
+  redrawMask();
+}
+
+function markFrame(event) {
+  const rect = sourceRect();
+  if (!rect || !Number.isFinite(source.duration)) return;
+  const canvasBounds = maskCanvas.getBoundingClientRect();
+  const x = event.clientX - canvasBounds.left - rect.x;
+  const y = event.clientY - canvasBounds.top - rect.y;
+  if (x < 0 || y < 0 || x > rect.width || y > rect.height) {
+    setStatus('Click inside the video frame, not the black bars.');
+    return;
+  }
+  pauseClips();
+  if (maskTime !== null && Math.abs(source.currentTime - maskTime) > 0.05) {
+    setStatus('This draft belongs to ' + timeLabel(maskTime) + '. Go to that frame or clear it first.');
+    return;
+  }
+  if (maskTime === null) maskTime = source.currentTime;
+  maskPoints.push({ x: x / rect.width, y: y / rect.height,
+                    radius: Number($('mask-radius').value) / 100, kind: maskMode });
+  updateMaskReadout();
+  redrawMask();
+}
+
 function loadClip(kind, url, name, bytes, owned) {
   pauseClips();
   if (clips[kind]?.owned) URL.revokeObjectURL(clips[kind].url);
   clips[kind] = { url, owned };
   if (kind === 'source') {
+    resetMask();
     for (const id of ['play-toggle', 'step-back', 'step-forward', 'scrubber', 'range-start', 'range-end', 'use-full']) {
       $(id).disabled = true;
     }
@@ -239,6 +346,44 @@ document.addEventListener('keydown', (event) => {
     nudgeTime(event.code === 'ArrowLeft' ? -1 : 1);
   }
 });
+
+for (const kind of ['include', 'exclude']) {
+  $('mask-' + kind).addEventListener('click', () => {
+    maskMode = kind;
+    $('mask-include').setAttribute('aria-pressed', String(kind === 'include'));
+    $('mask-exclude').setAttribute('aria-pressed', String(kind === 'exclude'));
+  });
+}
+$('mask-radius').addEventListener('input', () => {
+  $('mask-radius-value').textContent = $('mask-radius').value + '%';
+});
+$('mask-canvas').addEventListener('pointerdown', markFrame);
+$('mask-clear').addEventListener('click', resetMask);
+$('mask-frame').addEventListener('click', () => {
+  if (maskTime === null) return;
+  pauseClips();
+  seekTo(maskTime);
+  redrawMask();
+});
+$('mask-download').addEventListener('click', () => {
+  if (!source.videoWidth || !maskPoints.some((point) => point.kind === 'include')) return;
+  buildMask().toBlob((blob) => {
+    if (!blob) {
+      setStatus('Could not create the mask PNG.');
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'mask-' + Math.round(maskTime * 1000) + 'ms.png';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setStatus('Downloaded a mask for the marked frame. No video pixels are in the PNG.');
+  }, 'image/png');
+});
+source.addEventListener('pause', redrawMask);
+source.addEventListener('seeked', redrawMask);
+window.addEventListener('resize', redrawMask);
 
 window.addEventListener('beforeunload', () => {
   for (const clip of Object.values(clips)) {

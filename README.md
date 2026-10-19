@@ -63,14 +63,17 @@ python -m http.server 8767 --bind 127.0.0.1 --directory studio
 Open `http://127.0.0.1:8767/` and click **Load procedural demo**, or
 choose your own videos. The two small MP4 demos are moving test shapes and a
 grayscale variation. You can regenerate them with `python studio/make_demo.py`
-if FFmpeg is installed. No model runs in this version; mask previews, saved jobs,
-and optional render engines are next steps.
+if FFmpeg is installed. Pause the original, choose Include or Exclude, and
+click to draft a circular mask. The white-on-transparent PNG exports at the
+source resolution without video pixels. The draft belongs to one frame; it
+does not track a subject through the clip. No model runs in this version; saved
+jobs and optional render engines are next steps.
 
 ## Things I'd like to add
 
 - Compare this with image embeddings on real duplicate pairs.
 - Learn from which shots someone actually chooses to keep.
-- Extend the studio with mask previews, saved settings, and real render progress
+- Extend the studio with saved settings and real render progress
   when an optional engine is connected.
 
 The studio grew out of an AI-assisted side project around existing models.

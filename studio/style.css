@@ -109,3 +109,23 @@ footer span { color: #6b8a86; }
   .monitor-grid { grid-template-columns: 1fr; }
   .transport-foot { flex-direction: column; gap: 4px; }
 }
+
+#mask-canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
+.mask-panel { margin-top: 27px; padding: 15px; border: 1px solid #36534f; border-radius: 9px; background: #172b2d; }
+.mask-panel h3 { margin: 9px 0 5px; font-size: 14px; }
+.mask-panel p { margin: 0 0 13px; color: #a8bbb9; font-size: 11px; line-height: 1.55; }
+.mask-modes, .mask-actions { display: flex; gap: 7px; }
+.mask-modes button { flex: 1; padding: 8px; border: 1px solid #4c6965; border-radius: 7px; color: #cfe4df; background: #233d3d; font-size: 11px; }
+.mask-modes button[aria-pressed="true"] { color: #10251e; background: #8bdcc9; }
+.mask-radius { display: block; margin: 15px 0; color: #d7e2e6; font-size: 11px; }
+.mask-radius span { float: right; color: #9bc8be; }
+.mask-radius input { display: block; width: 100%; margin-top: 11px; accent-color: #8bdcc9; }
+.mask-actions .secondary { flex: 1; }
+.mask-panel .mask-download { width: 100%; margin-top: 8px; }
+.mask-panel .mask-readout { margin: 12px 0 0; }
+@media (max-width: 1180px) {
+  .mask-panel { grid-column: 1 / -1; grid-row: 5; margin-top: 0; }
+}
+@media (max-width: 740px) {
+  .mask-panel { margin-top: 24px; }
+}

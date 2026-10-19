@@ -44,7 +44,7 @@
         <div class="monitor-grid" id="monitor-grid">
           <section class="monitor">
             <div class="monitor-heading"><span>ORIGINAL</span><span id="source-resolution">—</span></div>
-            <div class="video-shell"><video id="source-video" preload="metadata" playsinline muted></video><div id="source-empty" class="empty-state"><span>▶</span><strong>Original preview</strong><small>Choose a video or load the demo</small></div></div>
+            <div class="video-shell"><video id="source-video" preload="metadata" playsinline muted></video><canvas id="mask-canvas" aria-label="Click to mark the paused original frame"></canvas><div id="source-empty" class="empty-state"><span>▶</span><strong>Original preview</strong><small>Choose a video or load the demo</small></div></div>
           </section>
           <section class="monitor">
             <div class="monitor-heading"><span>RESULT</span><span id="result-resolution">—</span></div>
@@ -68,6 +68,16 @@
         <div class="divider"></div>
         <span class="eyebrow">SOURCE DETAILS</span>
         <dl class="details"><div><dt>Duration</dt><dd id="detail-duration">—</dd></div><div><dt>Resolution</dt><dd id="detail-resolution">—</dd></div><div><dt>File size</dt><dd id="detail-size">—</dd></div><div><dt>Result length</dt><dd id="detail-result">—</dd></div></dl>
+        <section class="mask-panel" aria-label="Mask draft">
+          <span class="eyebrow">03 / MASK DRAFT</span>
+          <h3>Mark one paused frame</h3>
+          <p>Click the original preview to add circles. Include builds a white mask; exclude cuts holes. This is a rough draft, not subject tracking.</p>
+          <div class="mask-modes"><button id="mask-include" type="button" aria-pressed="true">Include</button><button id="mask-exclude" type="button" aria-pressed="false">Exclude</button></div>
+          <label class="mask-radius" for="mask-radius">Circle radius <span id="mask-radius-value">12%</span><input id="mask-radius" type="range" min="2" max="30" step="1" value="12"></label>
+          <div class="mask-actions"><button class="secondary" id="mask-frame" type="button" disabled>Go to marked frame</button><button class="secondary" id="mask-clear" type="button" disabled>Clear</button></div>
+          <button class="secondary mask-download" id="mask-download" type="button" disabled>Download mask PNG</button>
+          <p class="mask-readout" id="mask-readout">Load an original clip to start.</p>
+        </section>
         <div class="engine-note"><strong>Viewer first</strong><p>This version reviews local videos. No model engine is connected, and it does not render edits.</p></div>
       </aside>
     </div>
