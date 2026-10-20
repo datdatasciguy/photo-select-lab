@@ -65,7 +65,10 @@ choose your own videos. The two small MP4 demos are moving test shapes and a
 grayscale variation. You can regenerate them with `python studio/make_demo.py`
 if FFmpeg is installed. Pause the original, choose Include or Exclude, and
 click to draft a circular mask. The white-on-transparent PNG exports at the
-source resolution without video pixels. The draft belongs to one frame; it
+source resolution without video pixels. Save draft JSON to keep the selected
+range and mask circles, then load the same original clip and reopen the JSON
+later. The file contains settings only; matching resolution and duration helps
+catch mixups but cannot identify a clip. The mask belongs to one frame; it
 does not track a subject through the clip. No model runs in this version; saved
 jobs and optional render engines are next steps.
 
@@ -73,7 +76,7 @@ jobs and optional render engines are next steps.
 
 - Compare this with image embeddings on real duplicate pairs.
 - Learn from which shots someone actually chooses to keep.
-- Extend the studio with saved settings and real render progress
+- Extend the studio with real render progress
   when an optional engine is connected.
 
 The studio grew out of an AI-assisted side project around existing models.

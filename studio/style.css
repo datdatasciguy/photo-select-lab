@@ -129,3 +129,7 @@ footer span { color: #6b8a86; }
 @media (max-width: 740px) {
   .mask-panel { margin-top: 24px; }
 }
+
+.draft-actions { display: flex; gap: 7px; margin-top: 14px; }
+.draft-actions .secondary { flex: 1; }
+.mask-panel .draft-note { margin: 9px 0 0; }

@@ -57,6 +57,8 @@ function updateRange(changed) {
     showRange();
     return;
   }
+  const previousStart = start;
+  const previousEnd = end;
   start = Math.max(0, Math.min(duration, requestedStart));
   end = Math.max(0, Math.min(duration, requestedEnd));
   if (start >= end) {
@@ -66,6 +68,13 @@ function updateRange(changed) {
   if (start >= end) {
     start = 0;
     end = duration;
+  }
+  if (maskTime !== null && (maskTime < start || maskTime > end)) {
+    start = previousStart;
+    end = previousEnd;
+    showRange();
+    setStatus('The range must include the marked frame. Clear the mask first to change it.');
+    return;
   }
   pauseClips();
   showRange();
@@ -178,13 +187,85 @@ function markFrame(event) {
   redrawMask();
 }
 
+function downloadDraft() {
+  if (!source.videoWidth || !Number.isFinite(source.duration)) return;
+  const draft = {
+    version: 1,
+    source: { width: source.videoWidth, height: source.videoHeight, duration: source.duration },
+    range: { start, end },
+    mask: { time: maskTime, points: maskPoints }
+  };
+  const url = URL.createObjectURL(new Blob([JSON.stringify(draft, null, 2) + '\n'], { type: 'application/json' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'photo-select-draft.json';
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  setStatus('Saved range and mask settings. The JSON contains no video or image pixels.');
+}
+
+function validDraft(draft) {
+  const finite = (value) => typeof value === 'number' && Number.isFinite(value);
+  if (!draft || draft.version !== 1 || !draft.source || !draft.range || !draft.mask) return false;
+  const { width, height, duration } = draft.source;
+  const { start: rangeStart, end: rangeEnd } = draft.range;
+  const { time, points } = draft.mask;
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0 ||
+      !finite(duration) || duration <= 0 || !finite(rangeStart) || !finite(rangeEnd) ||
+      rangeStart < 0 || rangeEnd <= rangeStart || rangeEnd > duration) return false;
+  if (!Array.isArray(points) || points.length > 500 ||
+      (time !== null && (!finite(time) || time < rangeStart || time > rangeEnd)) ||
+      (points.length > 0 && time === null)) return false;
+  return points.every((point) => point && finite(point.x) && finite(point.y) &&
+    finite(point.radius) && point.x >= 0 && point.x <= 1 &&
+    point.y >= 0 && point.y <= 1 && point.radius >= 0.02 && point.radius <= 0.3 &&
+    ['include', 'exclude'].includes(point.kind));
+}
+
+async function openDraft(file) {
+  if (!file) return;
+  if (!source.videoWidth || !Number.isFinite(source.duration)) {
+    setStatus('Load the original clip before opening its draft.');
+    return;
+  }
+  if (file.size > 131072) {
+    setStatus('Draft JSON is too large to open.');
+    return;
+  }
+  try {
+    const draft = JSON.parse(await file.text());
+    if (!validDraft(draft)) {
+      setStatus('Draft JSON is invalid or from an unsupported version.');
+      return;
+    }
+    if (draft.source.width !== source.videoWidth || draft.source.height !== source.videoHeight ||
+        Math.abs(draft.source.duration - source.duration) > 0.05 || draft.range.end > source.duration ||
+        (draft.mask.time !== null && draft.mask.time > source.duration)) {
+      setStatus('Draft dimensions or duration do not match this clip. Load the original used for that draft.');
+      return;
+    }
+    pauseClips();
+    start = draft.range.start;
+    end = Math.min(source.duration, draft.range.end);
+    maskTime = draft.mask.time;
+    maskPoints.splice(0, maskPoints.length, ...draft.mask.points);
+    showRange();
+    seekTo(maskTime ?? start);
+    updateMaskReadout();
+    redrawMask();
+    setStatus('Draft restored. Check that this is the same original clip; duration and dimensions alone cannot prove it.');
+  } catch {
+    setStatus('Could not read that draft JSON.');
+  }
+}
+
 function loadClip(kind, url, name, bytes, owned) {
   pauseClips();
   if (clips[kind]?.owned) URL.revokeObjectURL(clips[kind].url);
   clips[kind] = { url, owned };
   if (kind === 'source') {
     resetMask();
-    for (const id of ['play-toggle', 'step-back', 'step-forward', 'scrubber', 'range-start', 'range-end', 'use-full']) {
+    for (const id of ['play-toggle', 'step-back', 'step-forward', 'scrubber', 'range-start', 'range-end', 'use-full', 'save-draft', 'open-draft']) {
       $(id).disabled = true;
     }
     $('detail-size').textContent = sizeLabel(bytes);
@@ -217,7 +298,7 @@ function onMetadata(kind) {
   if (kind === 'source') {
     start = 0;
     end = video.duration;
-    for (const id of ['play-toggle', 'step-back', 'step-forward', 'scrubber', 'range-start', 'range-end', 'use-full']) {
+    for (const id of ['play-toggle', 'step-back', 'step-forward', 'scrubber', 'range-start', 'range-end', 'use-full', 'save-draft', 'open-draft']) {
       $(id).disabled = false;
     }
     $('session-state').textContent = 'Ready to review';
@@ -380,6 +461,12 @@ $('mask-download').addEventListener('click', () => {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     setStatus('Downloaded a mask for the marked frame. No video pixels are in the PNG.');
   }, 'image/png');
+});
+$('save-draft').addEventListener('click', downloadDraft);
+$('open-draft').addEventListener('click', () => $('draft-input').click());
+$('draft-input').addEventListener('change', async (event) => {
+  await openDraft(event.target.files[0]);
+  event.target.value = '';
 });
 source.addEventListener('pause', redrawMask);
 source.addEventListener('seeked', redrawMask);

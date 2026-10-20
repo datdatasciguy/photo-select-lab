@@ -77,6 +77,8 @@
           <div class="mask-actions"><button class="secondary" id="mask-frame" type="button" disabled>Go to marked frame</button><button class="secondary" id="mask-clear" type="button" disabled>Clear</button></div>
           <button class="secondary mask-download" id="mask-download" type="button" disabled>Download mask PNG</button>
           <p class="mask-readout" id="mask-readout">Load an original clip to start.</p>
+          <div class="draft-actions"><button class="secondary" id="save-draft" type="button" disabled>Save draft JSON</button><button class="secondary" id="open-draft" type="button" disabled>Open draft JSON</button></div>
+          <p class="draft-note">Reload the original clip before reopening a draft. Settings contain no media.</p>
         </section>
         <div class="engine-note"><strong>Viewer first</strong><p>This version reviews local videos. No model engine is connected, and it does not render edits.</p></div>
       </aside>
@@ -85,5 +87,6 @@
   </div>
   <input id="source-input" type="file" accept="video/*" hidden>
   <input id="result-input" type="file" accept="video/*" hidden>
+  <input id="draft-input" type="file" accept="application/json,.json" hidden>
 </body>
 </html>
