@@ -71,10 +71,10 @@
         <section class="mask-panel" aria-label="Mask draft">
           <span class="eyebrow">03 / MASK DRAFT</span>
           <h3>Mark one paused frame</h3>
-          <p>Click the original preview to add circles. Include builds a white mask; exclude cuts holes. This is a rough draft, not subject tracking.</p>
-          <div class="mask-modes"><button id="mask-include" type="button" aria-pressed="true">Include</button><button id="mask-exclude" type="button" aria-pressed="false">Exclude</button></div>
+          <p>Add include or exclude circles, then use Edit to drag a center or delete one mark. This is a one-frame draft, not subject tracking.</p>
+          <div class="mask-modes"><button id="mask-include" type="button" aria-pressed="true">Include</button><button id="mask-exclude" type="button" aria-pressed="false">Exclude</button><button id="mask-edit" type="button" aria-pressed="false">Edit</button></div>
           <label class="mask-radius" for="mask-radius">Circle radius <span id="mask-radius-value">12%</span><input id="mask-radius" type="range" min="2" max="30" step="1" value="12"></label>
-          <div class="mask-actions"><button class="secondary" id="mask-frame" type="button" disabled>Go to marked frame</button><button class="secondary" id="mask-clear" type="button" disabled>Clear</button></div>
+          <div class="mask-actions"><button class="secondary" id="mask-frame" type="button" disabled>Go to marked frame</button><button class="secondary" id="mask-delete" type="button" disabled>Delete selected</button><button class="secondary" id="mask-clear" type="button" disabled>Clear all</button></div>
           <button class="secondary mask-download" id="mask-download" type="button" disabled>Download mask PNG</button>
           <p class="mask-readout" id="mask-readout">Load an original clip to start.</p>
           <div class="draft-actions"><button class="secondary" id="save-draft" type="button" disabled>Save draft JSON</button><button class="secondary" id="open-draft" type="button" disabled>Open draft JSON</button></div>

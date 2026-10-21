@@ -120,7 +120,8 @@ footer span { color: #6b8a86; }
 .mask-radius { display: block; margin: 15px 0; color: #d7e2e6; font-size: 11px; }
 .mask-radius span { float: right; color: #9bc8be; }
 .mask-radius input { display: block; width: 100%; margin-top: 11px; accent-color: #8bdcc9; }
-.mask-actions .secondary { flex: 1; }
+.mask-actions { flex-wrap: wrap; }
+.mask-actions .secondary { flex: 1; min-width: 90px; }
 .mask-panel .mask-download { width: 100%; margin-top: 8px; }
 .mask-panel .mask-readout { margin: 12px 0 0; }
 @media (max-width: 1180px) {

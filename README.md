@@ -64,9 +64,10 @@ Open `http://127.0.0.1:8767/` and click **Load procedural demo**, or
 choose your own videos. The two small MP4 demos are moving test shapes and a
 grayscale variation. You can regenerate them with `python studio/make_demo.py`
 if FFmpeg is installed. Pause the original, choose Include or Exclude, and
-click to draft a circular mask. The white-on-transparent PNG exports at the
-source resolution without video pixels. Save draft JSON to keep the selected
-range and mask circles, then load the same original clip and reopen the JSON
+click to draft a circular mask. Use Edit to move a circle or delete one mark.
+The white-on-transparent PNG exports at the source resolution without video
+pixels. Save draft JSON to keep the selected range and mask circles, then load
+the same original clip and reopen the JSON
 later. The file contains settings only; matching resolution and duration helps
 catch mixups but cannot identify a clip. The mask belongs to one frame; it
 does not track a subject through the clip. No model runs in this version; saved

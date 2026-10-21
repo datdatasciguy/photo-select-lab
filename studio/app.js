@@ -85,6 +85,8 @@ const maskCanvas = $('mask-canvas');
 const maskPoints = [];
 let maskTime = null;
 let maskMode = 'include';
+let selectedPoint = -1;
+let activePointer = null;
 
 function sourceRect() {
   if (!source.videoWidth || !source.videoHeight) return null;
@@ -123,9 +125,10 @@ function updateMaskReadout() {
   $('mask-frame').disabled = maskPoints.length === 0;
   $('mask-clear').disabled = maskPoints.length === 0;
   $('mask-download').disabled = include === 0;
+  $('mask-delete').disabled = selectedPoint < 0;
   $('mask-readout').textContent = maskPoints.length
     ? include + ' include, ' + exclude + ' exclude at ' + timeLabel(maskTime) +
-      '. The PNG is white inside the draft and transparent elsewhere.'
+      (selectedPoint >= 0 ? '. Circle ' + (selectedPoint + 1) + ' selected.' : '.')
     : clips.source ? 'Pause and click the original preview to mark one frame.'
       : 'Load an original clip to start.';
 }
@@ -147,13 +150,15 @@ function redrawMask() {
   context.globalAlpha = 0.35;
   context.drawImage(buildMask(), rect.x, rect.y, rect.width, rect.height);
   context.globalAlpha = 1;
-  for (const point of maskPoints) {
+  for (const [index, point] of maskPoints.entries()) {
+    const x = rect.x + point.x * rect.width;
+    const y = rect.y + point.y * rect.height;
     context.beginPath();
-    context.arc(rect.x + point.x * rect.width, rect.y + point.y * rect.height, 5, 0, Math.PI * 2);
+    context.arc(x, y, index === selectedPoint ? 8 : 5, 0, Math.PI * 2);
     context.fillStyle = point.kind === 'include' ? '#8bdcc9' : '#ffad9d';
     context.fill();
-    context.lineWidth = 2;
-    context.strokeStyle = '#10202a';
+    context.lineWidth = index === selectedPoint ? 3 : 2;
+    context.strokeStyle = index === selectedPoint ? '#ffffff' : '#10202a';
     context.stroke();
   }
 }
@@ -161,16 +166,21 @@ function redrawMask() {
 function resetMask() {
   maskPoints.length = 0;
   maskTime = null;
+  selectedPoint = -1;
+  activePointer = null;
   updateMaskReadout();
   redrawMask();
+}
+
+function maskPosition(event, rect) {
+  const bounds = maskCanvas.getBoundingClientRect();
+  return { x: event.clientX - bounds.left - rect.x, y: event.clientY - bounds.top - rect.y };
 }
 
 function markFrame(event) {
   const rect = sourceRect();
   if (!rect || !Number.isFinite(source.duration)) return;
-  const canvasBounds = maskCanvas.getBoundingClientRect();
-  const x = event.clientX - canvasBounds.left - rect.x;
-  const y = event.clientY - canvasBounds.top - rect.y;
+  const { x, y } = maskPosition(event, rect);
   if (x < 0 || y < 0 || x > rect.width || y > rect.height) {
     setStatus('Click inside the video frame, not the black bars.');
     return;
@@ -180,9 +190,53 @@ function markFrame(event) {
     setStatus('This draft belongs to ' + timeLabel(maskTime) + '. Go to that frame or clear it first.');
     return;
   }
+  if (maskMode === 'edit') {
+    selectedPoint = -1;
+    for (let index = maskPoints.length - 1; index >= 0; index--) {
+      const point = maskPoints[index];
+      if (Math.hypot(x - point.x * rect.width, y - point.y * rect.height) <= 14) {
+        selectedPoint = index;
+        activePointer = event.pointerId;
+        maskCanvas.setPointerCapture(event.pointerId);
+        break;
+      }
+    }
+    updateMaskReadout();
+    redrawMask();
+    return;
+  }
   if (maskTime === null) maskTime = source.currentTime;
+  selectedPoint = -1;
   maskPoints.push({ x: x / rect.width, y: y / rect.height,
                     radius: Number($('mask-radius').value) / 100, kind: maskMode });
+  updateMaskReadout();
+  redrawMask();
+}
+
+function moveMaskPoint(event) {
+  if (event.pointerId !== activePointer || selectedPoint < 0) return;
+  const rect = sourceRect();
+  if (!rect) return;
+  const { x, y } = maskPosition(event, rect);
+  maskPoints[selectedPoint].x = Math.max(0, Math.min(1, x / rect.width));
+  maskPoints[selectedPoint].y = Math.max(0, Math.min(1, y / rect.height));
+  redrawMask();
+}
+
+function finishMaskMove(event) {
+  if (event.pointerId !== activePointer) return;
+  activePointer = null;
+  if (maskCanvas.hasPointerCapture(event.pointerId)) maskCanvas.releasePointerCapture(event.pointerId);
+}
+
+function deleteMaskPoint() {
+  if (selectedPoint < 0) return;
+  maskPoints.splice(selectedPoint, 1);
+  selectedPoint = -1;
+  if (!maskPoints.length) {
+    resetMask();
+    return;
+  }
   updateMaskReadout();
   redrawMask();
 }
@@ -249,6 +303,8 @@ async function openDraft(file) {
     end = Math.min(source.duration, draft.range.end);
     maskTime = draft.mask.time;
     maskPoints.splice(0, maskPoints.length, ...draft.mask.points);
+    selectedPoint = -1;
+    activePointer = null;
     showRange();
     seekTo(maskTime ?? start);
     updateMaskReadout();
@@ -428,17 +484,25 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
-for (const kind of ['include', 'exclude']) {
+for (const kind of ['include', 'exclude', 'edit']) {
   $('mask-' + kind).addEventListener('click', () => {
     maskMode = kind;
-    $('mask-include').setAttribute('aria-pressed', String(kind === 'include'));
-    $('mask-exclude').setAttribute('aria-pressed', String(kind === 'exclude'));
+    for (const mode of ['include', 'exclude', 'edit']) {
+      $('mask-' + mode).setAttribute('aria-pressed', String(mode === kind));
+    }
+    selectedPoint = -1;
+    updateMaskReadout();
+    redrawMask();
   });
 }
 $('mask-radius').addEventListener('input', () => {
   $('mask-radius-value').textContent = $('mask-radius').value + '%';
 });
 $('mask-canvas').addEventListener('pointerdown', markFrame);
+$('mask-canvas').addEventListener('pointermove', moveMaskPoint);
+$('mask-canvas').addEventListener('pointerup', finishMaskMove);
+$('mask-canvas').addEventListener('pointercancel', finishMaskMove);
+$('mask-delete').addEventListener('click', deleteMaskPoint);
 $('mask-clear').addEventListener('click', resetMask);
 $('mask-frame').addEventListener('click', () => {
   if (maskTime === null) return;
