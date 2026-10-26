@@ -3,6 +3,8 @@ const $ = (id) => document.getElementById(id);
 const source = $('source-video');
 const result = $('result-video');
 const clips = { source: null, result: null };
+const compareCanvas = $('compare-canvas');
+let compareFrame = null;
 let start = 0;
 let end = 0;
 
@@ -22,6 +24,61 @@ function setStatus(message) {
   $('status').textContent = message;
 }
 
+function drawContained(video, context, width, height) {
+  const scale = Math.min(width / video.videoWidth, height / video.videoHeight);
+  const videoWidth = video.videoWidth * scale;
+  const videoHeight = video.videoHeight * scale;
+  context.drawImage(video, (width - videoWidth) / 2,
+                    (height - videoHeight) / 2, videoWidth, videoHeight);
+}
+
+function drawComparison() {
+  if ($('compare-panel').hidden || source.readyState < 2 || result.readyState < 2) return;
+  const width = Math.min(source.videoWidth, 960);
+  const height = Math.round(width * source.videoHeight / source.videoWidth);
+  if (compareCanvas.width !== width || compareCanvas.height !== height) {
+    compareCanvas.width = width;
+    compareCanvas.height = height;
+  }
+  const context = compareCanvas.getContext('2d');
+  const split = width * Number($('compare-wipe').value) / 100;
+  context.fillStyle = '#05080c';
+  context.fillRect(0, 0, width, height);
+  drawContained(source, context, width, height);
+  context.save();
+  context.beginPath();
+  context.rect(0, 0, split, height);
+  context.clip();
+  drawContained(result, context, width, height);
+  context.restore();
+  context.fillStyle = '#8bdcc9';
+  context.fillRect(split - 1, 0, 2, height);
+  $('compare-times').textContent = timeLabel(source.currentTime) +
+    ' original · ' + timeLabel(result.currentTime) + ' result';
+}
+
+function scheduleComparison() {
+  if (compareFrame !== null) return;
+  compareFrame = requestAnimationFrame(() => {
+    compareFrame = null;
+    drawComparison();
+    if (!source.paused) scheduleComparison();
+  });
+}
+
+function updateComparison() {
+  const ready = clips.source && clips.result && source.videoWidth && result.videoWidth &&
+    Number.isFinite(source.duration) && Number.isFinite(result.duration);
+  $('compare-panel').hidden = !ready;
+  if (!ready) return;
+  const sameSize = source.videoWidth === result.videoWidth &&
+    source.videoHeight === result.videoHeight;
+  $('compare-note').textContent = sameSize
+    ? 'Result is left of the line. Frames follow the original time.'
+    : 'Clip sizes differ. Both are fitted into the original frame; edges may not line up.';
+  scheduleComparison();
+}
+
 function pauseClips() {
   source.pause();
   result.pause();
@@ -38,6 +95,7 @@ function seekTo(seconds) {
   }
   $('scrubber').value = String(position);
   $('current-time').textContent = timeLabel(position);
+  scheduleComparison();
 }
 
 function showRange() {
@@ -329,6 +387,7 @@ function loadClip(kind, url, name, bytes, owned) {
   const video = kind === 'source' ? source : result;
   video.src = url;
   video.load();
+  updateComparison();
   $(`${kind}-file`).textContent = `${name} · ${sizeLabel(bytes)}`;
   $(`${kind}-empty`).hidden = true;
   $(`${kind}-resolution`).textContent = 'Loading…';
@@ -370,6 +429,7 @@ function onMetadata(kind) {
       setStatus('Result is shorter than the selected range. It will hold on its last frame.');
     }
   }
+  updateComparison();
 }
 
 async function togglePlayback() {
@@ -387,6 +447,7 @@ async function togglePlayback() {
     }
     $('play-toggle').textContent = 'Ⅱ';
     $('play-toggle').setAttribute('aria-label', 'Pause selected clip');
+    scheduleComparison();
   } catch {
     pauseClips();
     setStatus('Playback failed. This browser may not support the video codec.');
@@ -417,6 +478,8 @@ for (const kind of ['source', 'result']) {
   $(`choose-${kind}`).addEventListener('click', () => $(`${kind}-input`).click());
   $(`${kind}-input`).addEventListener('change', (event) => loadFile(kind, event.target.files[0]));
   (kind === 'source' ? source : result).addEventListener('loadedmetadata', () => onMetadata(kind));
+  (kind === 'source' ? source : result).addEventListener('loadeddata', scheduleComparison);
+  (kind === 'source' ? source : result).addEventListener('seeked', scheduleComparison);
   (kind === 'source' ? source : result).addEventListener('error', () => {
     setStatus(`Could not open the ${kind} video. Check that its format plays in this browser.`);
   });
@@ -470,6 +533,12 @@ source.addEventListener('timeupdate', () => {
     const position = Math.min(source.currentTime, result.duration);
     if (Math.abs(result.currentTime - position) > 0.12) result.currentTime = position;
   }
+  scheduleComparison();
+});
+
+$('compare-wipe').addEventListener('input', () => {
+  $('compare-percent').textContent = $('compare-wipe').value + '%';
+  scheduleComparison();
 });
 
 source.addEventListener('ended', pauseClips);

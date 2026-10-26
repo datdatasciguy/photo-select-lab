@@ -65,6 +65,9 @@ choose your own videos. The two small MP4 demos are moving test shapes and a
 grayscale variation. You can regenerate them with `python studio/make_demo.py`
 if FFmpeg is installed. Pause the original, choose Include or Exclude, and
 click to draft a circular mask. Use Edit to move a circle or delete one mark.
+With both clips loaded, the wipe view shows the result to the left of its line
+and the original to the right. Drag the slider to inspect a change at the
+current time; mismatched clip sizes are fitted into the same view and called out.
 The white-on-transparent PNG exports at the source resolution without video
 pixels. Save draft JSON to keep the selected range and mask circles, then load
 the same original clip and reopen the JSON

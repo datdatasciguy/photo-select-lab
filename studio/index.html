@@ -52,6 +52,14 @@
           </section>
         </div>
 
+        <section class="compare-panel" id="compare-panel" aria-label="Wipe comparison" hidden>
+          <div class="compare-heading"><div><span class="eyebrow">WIPE COMPARE</span><h2>Look at the same frame.</h2></div><span id="compare-times">—</span></div>
+          <canvas id="compare-canvas" aria-label="Original and result frames in a wipe comparison"></canvas>
+          <label for="compare-wipe">Show result <span id="compare-percent">50%</span></label>
+          <input id="compare-wipe" type="range" min="0" max="100" value="50" aria-label="Amount of result shown">
+          <p id="compare-note">The result appears to the left of the line.</p>
+        </section>
+
         <section class="transport" aria-label="Playback controls">
           <div class="transport-row"><button class="play-button" id="play-toggle" type="button" disabled aria-label="Play selected clip">▶</button><button class="step-button" id="step-back" type="button" disabled aria-label="Nudge back about 0.04 seconds">−0.04s</button><button class="step-button" id="step-forward" type="button" disabled aria-label="Nudge forward about 0.04 seconds">+0.04s</button><span class="time-label"><strong id="current-time">0:00.00</strong> / <span id="total-time">0:00.00</span></span></div>
           <input id="scrubber" class="scrubber" type="range" min="0" max="1" step="0.01" value="0" disabled aria-label="Clip position">

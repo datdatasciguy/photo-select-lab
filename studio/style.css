@@ -56,6 +56,14 @@ video { width: 100%; height: 100%; object-fit: contain; display: block; }
 .empty-state span { font-size: 28px; color: #598173; }
 .empty-state strong { color: #ced8dc; font-size: 12px; }
 .empty-state small { font-size: 10px; }
+.compare-panel { margin-top: 15px; padding: 15px; border: 1px solid #36534f; border-radius: 10px; background: #142626; }
+.compare-heading { display: flex; justify-content: space-between; align-items: end; gap: 12px; margin-bottom: 10px; }
+.compare-heading h2 { margin: 5px 0 0; font-size: 16px; }
+.compare-heading > span { color: #a2b7b8; font-size: 10px; font-variant-numeric: tabular-nums; }
+#compare-canvas { display: block; width: 100%; height: auto; background: #05080c; border-radius: 6px; }
+.compare-panel label { display: flex; justify-content: space-between; margin-top: 12px; font-size: 11px; color: #d6e9e4; }
+#compare-wipe { width: 100%; margin: 10px 0 4px; accent-color: #8bdcc9; }
+.compare-panel p { margin: 3px 0 0; color: #9eb8b2; font-size: 10px; line-height: 1.5; }
 .transport { margin-top: 15px; padding: 15px 17px 12px; border: 1px solid #34434e; border-radius: 10px; background: #151f29; }
 .transport-row { display: flex; align-items: center; gap: 8px; }
 .play-button { height: 36px; width: 42px; border: 0; border-radius: 7px; color: #0d2c26; background: #8bdcc9; font-size: 14px; }
