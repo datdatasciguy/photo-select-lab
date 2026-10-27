@@ -88,6 +88,7 @@ function pauseClips() {
 
 function seekTo(seconds) {
   if (!clips.source) return;
+  clearDifference();
   const position = Math.max(start, Math.min(end, seconds));
   source.currentTime = position;
   if (clips.result && Number.isFinite(result.duration)) {
@@ -189,6 +190,72 @@ function updateMaskReadout() {
       (selectedPoint >= 0 ? '. Circle ' + (selectedPoint + 1) + ' selected.' : '.')
     : clips.source ? 'Pause and click the original preview to mark one frame.'
       : 'Load an original clip to start.';
+  updateDifferenceAvailability();
+}
+
+function clearDifference() {
+  $('difference-readout').textContent = 'Check the marked frame to count changed pixels.';
+}
+
+function updateDifferenceAvailability() {
+  const hasMask = maskPoints.some((point) => point.kind === 'include');
+  const ready = hasMask && clips.source && clips.result &&
+    source.readyState >= 2 && result.readyState >= 2;
+  $('mask-difference').disabled = !ready;
+}
+
+function checkDifference() {
+  if (!maskPoints.some((point) => point.kind === 'include') || !clips.result) return;
+  if (source.videoWidth !== result.videoWidth || source.videoHeight !== result.videoHeight) {
+    $('difference-readout').textContent = 'Clip resolutions differ. Use matching dimensions for a pixel check.';
+    return;
+  }
+  if (!source.paused || !result.paused || source.seeking || result.seeking ||
+      source.readyState < 2 || result.readyState < 2 ||
+      Math.abs(source.currentTime - maskTime) > 0.05 ||
+      Math.abs(result.currentTime - maskTime) > 0.05) {
+    $('difference-readout').textContent = 'Pause both clips at the marked frame, then try again.';
+    return;
+  }
+  const scale = Math.min(1, 960 / Math.max(source.videoWidth, source.videoHeight));
+  const width = Math.max(1, Math.round(source.videoWidth * scale));
+  const height = Math.max(1, Math.round(source.videoHeight * scale));
+  const pixels = [];
+  try {
+    for (const video of [source, result]) {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      context.drawImage(video, 0, 0, width, height);
+      pixels.push(context.getImageData(0, 0, width, height).data);
+    }
+    const mask = document.createElement('canvas');
+    mask.width = width;
+    mask.height = height;
+    const maskContext = mask.getContext('2d', { willReadFrequently: true });
+    maskContext.drawImage(buildMask(), 0, 0, width, height);
+    const maskPixels = maskContext.getImageData(0, 0, width, height).data;
+    const threshold = Number($('difference-threshold').value);
+    const counts = { inside: { total: 0, changed: 0 }, outside: { total: 0, changed: 0 } };
+    for (let index = 0; index < pixels[0].length; index += 4) {
+      const group = maskPixels[index + 3] > 0 ? counts.inside : counts.outside;
+      group.total++;
+      if (Math.max(Math.abs(pixels[0][index] - pixels[1][index]),
+                   Math.abs(pixels[0][index + 1] - pixels[1][index + 1]),
+                   Math.abs(pixels[0][index + 2] - pixels[1][index + 2])) >= threshold) {
+        group.changed++;
+      }
+    }
+    const label = (group) => group.total
+      ? `${group.changed.toLocaleString()} / ${group.total.toLocaleString()} (${(100 * group.changed / group.total).toFixed(1)}%)`
+      : 'no pixels';
+    $('difference-readout').textContent =
+      `Outside mask: ${label(counts.outside)} changed. Inside mask: ${label(counts.inside)} changed. ` +
+      `${width} × ${height} sampled pixels; any RGB channel differs by at least ${threshold}.`;
+  } catch {
+    $('difference-readout').textContent = 'Could not read these video frames for a pixel check.';
+  }
 }
 
 function redrawMask() {
@@ -226,6 +293,7 @@ function resetMask() {
   maskTime = null;
   selectedPoint = -1;
   activePointer = null;
+  clearDifference();
   updateMaskReadout();
   redrawMask();
 }
@@ -267,6 +335,7 @@ function markFrame(event) {
   selectedPoint = -1;
   maskPoints.push({ x: x / rect.width, y: y / rect.height,
                     radius: Number($('mask-radius').value) / 100, kind: maskMode });
+  clearDifference();
   updateMaskReadout();
   redrawMask();
 }
@@ -278,6 +347,7 @@ function moveMaskPoint(event) {
   const { x, y } = maskPosition(event, rect);
   maskPoints[selectedPoint].x = Math.max(0, Math.min(1, x / rect.width));
   maskPoints[selectedPoint].y = Math.max(0, Math.min(1, y / rect.height));
+  clearDifference();
   redrawMask();
 }
 
@@ -290,6 +360,7 @@ function finishMaskMove(event) {
 function deleteMaskPoint() {
   if (selectedPoint < 0) return;
   maskPoints.splice(selectedPoint, 1);
+  clearDifference();
   selectedPoint = -1;
   if (!maskPoints.length) {
     resetMask();
@@ -361,6 +432,7 @@ async function openDraft(file) {
     end = Math.min(source.duration, draft.range.end);
     maskTime = draft.mask.time;
     maskPoints.splice(0, maskPoints.length, ...draft.mask.points);
+    clearDifference();
     selectedPoint = -1;
     activePointer = null;
     showRange();
@@ -375,6 +447,7 @@ async function openDraft(file) {
 
 function loadClip(kind, url, name, bytes, owned) {
   pauseClips();
+  clearDifference();
   if (clips[kind]?.owned) URL.revokeObjectURL(clips[kind].url);
   clips[kind] = { url, owned };
   if (kind === 'source') {
@@ -388,6 +461,7 @@ function loadClip(kind, url, name, bytes, owned) {
   video.src = url;
   video.load();
   updateComparison();
+  updateDifferenceAvailability();
   $(`${kind}-file`).textContent = `${name} · ${sizeLabel(bytes)}`;
   $(`${kind}-empty`).hidden = true;
   $(`${kind}-resolution`).textContent = 'Loading…';
@@ -439,6 +513,7 @@ async function togglePlayback() {
     return;
   }
   if (source.currentTime >= end - 0.02) seekTo(start);
+  clearDifference();
   if (clips.result) seekTo(source.currentTime);
   try {
     await source.play();
@@ -478,7 +553,10 @@ for (const kind of ['source', 'result']) {
   $(`choose-${kind}`).addEventListener('click', () => $(`${kind}-input`).click());
   $(`${kind}-input`).addEventListener('change', (event) => loadFile(kind, event.target.files[0]));
   (kind === 'source' ? source : result).addEventListener('loadedmetadata', () => onMetadata(kind));
-  (kind === 'source' ? source : result).addEventListener('loadeddata', scheduleComparison);
+  (kind === 'source' ? source : result).addEventListener('loadeddata', () => {
+    scheduleComparison();
+    updateDifferenceAvailability();
+  });
   (kind === 'source' ? source : result).addEventListener('seeked', scheduleComparison);
   (kind === 'source' ? source : result).addEventListener('error', () => {
     setStatus(`Could not open the ${kind} video. Check that its format plays in this browser.`);
@@ -567,6 +645,11 @@ for (const kind of ['include', 'exclude', 'edit']) {
 $('mask-radius').addEventListener('input', () => {
   $('mask-radius-value').textContent = $('mask-radius').value + '%';
 });
+$('difference-threshold').addEventListener('input', () => {
+  $('difference-threshold-value').textContent = $('difference-threshold').value;
+  clearDifference();
+});
+$('mask-difference').addEventListener('click', checkDifference);
 $('mask-canvas').addEventListener('pointerdown', markFrame);
 $('mask-canvas').addEventListener('pointermove', moveMaskPoint);
 $('mask-canvas').addEventListener('pointerup', finishMaskMove);

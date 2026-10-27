@@ -73,8 +73,12 @@ pixels. Save draft JSON to keep the selected range and mask circles, then load
 the same original clip and reopen the JSON
 later. The file contains settings only; matching resolution and duration helps
 catch mixups but cannot identify a clip. The mask belongs to one frame; it
-does not track a subject through the clip. No model runs in this version; saved
-jobs and optional render engines are next steps.
+does not track a subject through the clip. With a matching result clip, pause at
+the marked frame and use **Check changed pixels** to see how many pixels differ
+inside and outside the mask. The RGB threshold ignores small color changes;
+large frames are sampled down to fit within 960 pixels. This local count cannot
+judge edit quality or detect flicker across time. No model runs in this version;
+saved jobs and optional render engines are next steps.
 
 ## Things I'd like to add
 
