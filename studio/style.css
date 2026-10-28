@@ -132,6 +132,9 @@ footer span { color: #6b8a86; }
 .mask-actions .secondary { flex: 1; min-width: 90px; }
 .mask-panel .mask-download { width: 100%; margin-top: 8px; }
 .mask-panel .mask-readout { margin: 12px 0 0; }
+.flicker-samples { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.flicker-samples button { padding: 6px 8px; border: 1px solid #4c6965; border-radius: 6px; color: #cfe4df; background: #233d3d; font-size: 11px; }
+.flicker-samples button:hover, .flicker-samples button:focus-visible { border-color: #8bdcc9; }
 @media (max-width: 1180px) {
   .mask-panel { grid-column: 1 / -1; grid-row: 5; margin-top: 0; }
 }

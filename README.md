@@ -77,8 +77,13 @@ does not track a subject through the clip. With a matching result clip, pause at
 the marked frame and use **Check changed pixels** to see how many pixels differ
 inside and outside the mask. The RGB threshold ignores small color changes;
 large frames are sampled down to fit within 960 pixels. This local count cannot
-judge edit quality or detect flicker across time. No model runs in this version;
-saved jobs and optional render engines are next steps.
+judge edit quality. **Scan nearby frames** checks up to five moments within a
+quarter second of the mark. It shows the outside-mask change rate at each frame,
+how much that rate varies, and the largest shift in which pixels count as changed.
+Click a sample to inspect it in the wipe view. The mask stays fixed, so subject
+motion can affect these numbers too; they flag frames to review, not proven
+flicker. No model runs in this version; saved jobs and optional render engines
+are next steps.
 
 ## Things I'd like to add
 

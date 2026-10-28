@@ -90,6 +90,11 @@
           <label class="mask-radius" for="difference-threshold">RGB difference threshold <span id="difference-threshold-value">24</span><input id="difference-threshold" type="range" min="1" max="128" step="1" value="24"></label>
           <button class="secondary mask-download" id="mask-difference" type="button" disabled>Check changed pixels</button>
           <p class="mask-readout" id="difference-readout" role="status">Mark a frame and load a result to compare.</p>
+          <h3>Inspect nearby frames</h3>
+          <p>Sample up to five frames within a quarter second of the mark. The mask stays fixed while you inspect how outside changes vary.</p>
+          <button class="secondary mask-download" id="flicker-scan" type="button" disabled>Scan nearby frames</button>
+          <p class="mask-readout" id="flicker-readout" role="status">Mark a frame and load a result to scan.</p>
+          <div class="flicker-samples" id="flicker-samples" aria-label="Sampled frames"></div>
           <div class="draft-actions"><button class="secondary" id="save-draft" type="button" disabled>Save draft JSON</button><button class="secondary" id="open-draft" type="button" disabled>Open draft JSON</button></div>
           <p class="draft-note">Reload the original clip before reopening a draft. Settings contain no media.</p>
         </section>

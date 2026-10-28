@@ -136,6 +136,7 @@ function updateRange(changed) {
     return;
   }
   pauseClips();
+  clearScan();
   showRange();
   seekTo(start);
 }
@@ -146,6 +147,8 @@ let maskTime = null;
 let maskMode = 'include';
 let selectedPoint = -1;
 let activePointer = null;
+let scanRevision = 0;
+let scanBusy = false;
 
 function sourceRect() {
   if (!source.videoWidth || !source.videoHeight) return null;
@@ -197,11 +200,56 @@ function clearDifference() {
   $('difference-readout').textContent = 'Check the marked frame to count changed pixels.';
 }
 
+function clearScan() {
+  scanRevision++;
+  $('flicker-readout').textContent = 'Scan nearby frames to compare outside-mask changes.';
+  $('flicker-samples').replaceChildren();
+}
+
 function updateDifferenceAvailability() {
   const hasMask = maskPoints.some((point) => point.kind === 'include');
   const ready = hasMask && clips.source && clips.result &&
     source.readyState >= 2 && result.readyState >= 2;
   $('mask-difference').disabled = !ready;
+  $('flicker-scan').disabled = !ready || scanBusy;
+}
+
+function differenceSetup() {
+  const scale = Math.min(1, 960 / Math.max(source.videoWidth, source.videoHeight));
+  const width = Math.max(1, Math.round(source.videoWidth * scale));
+  const height = Math.max(1, Math.round(source.videoHeight * scale));
+  const mask = document.createElement('canvas');
+  mask.width = width;
+  mask.height = height;
+  const maskContext = mask.getContext('2d', { willReadFrequently: true });
+  maskContext.drawImage(buildMask(), 0, 0, width, height);
+  return { width, height, maskPixels: maskContext.getImageData(0, 0, width, height).data };
+}
+
+function measureDifference(original, edited, setup, threshold, trackOutside = false) {
+  const { width, height, maskPixels } = setup;
+  const pixels = [];
+  const outsideFlags = trackOutside ? new Uint8Array(width * height) : null;
+  for (const video of [original, edited]) {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    context.drawImage(video, 0, 0, width, height);
+    pixels.push(context.getImageData(0, 0, width, height).data);
+  }
+  const counts = { inside: { total: 0, changed: 0 }, outside: { total: 0, changed: 0 } };
+  for (let index = 0; index < pixels[0].length; index += 4) {
+    const group = maskPixels[index + 3] > 0 ? counts.inside : counts.outside;
+    group.total++;
+    const changed = Math.max(Math.abs(pixels[0][index] - pixels[1][index]),
+                 Math.abs(pixels[0][index + 1] - pixels[1][index + 1]),
+                 Math.abs(pixels[0][index + 2] - pixels[1][index + 2])) >= threshold;
+    if (changed) group.changed++;
+    if (outsideFlags && group === counts.outside) outsideFlags[index / 4] = Number(changed);
+  }
+  counts.outsideFlags = outsideFlags;
+  return counts;
 }
 
 function checkDifference() {
@@ -217,44 +265,140 @@ function checkDifference() {
     $('difference-readout').textContent = 'Pause both clips at the marked frame, then try again.';
     return;
   }
-  const scale = Math.min(1, 960 / Math.max(source.videoWidth, source.videoHeight));
-  const width = Math.max(1, Math.round(source.videoWidth * scale));
-  const height = Math.max(1, Math.round(source.videoHeight * scale));
-  const pixels = [];
   try {
-    for (const video of [source, result]) {
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const context = canvas.getContext('2d', { willReadFrequently: true });
-      context.drawImage(video, 0, 0, width, height);
-      pixels.push(context.getImageData(0, 0, width, height).data);
-    }
-    const mask = document.createElement('canvas');
-    mask.width = width;
-    mask.height = height;
-    const maskContext = mask.getContext('2d', { willReadFrequently: true });
-    maskContext.drawImage(buildMask(), 0, 0, width, height);
-    const maskPixels = maskContext.getImageData(0, 0, width, height).data;
+    const setup = differenceSetup();
     const threshold = Number($('difference-threshold').value);
-    const counts = { inside: { total: 0, changed: 0 }, outside: { total: 0, changed: 0 } };
-    for (let index = 0; index < pixels[0].length; index += 4) {
-      const group = maskPixels[index + 3] > 0 ? counts.inside : counts.outside;
-      group.total++;
-      if (Math.max(Math.abs(pixels[0][index] - pixels[1][index]),
-                   Math.abs(pixels[0][index + 1] - pixels[1][index + 1]),
-                   Math.abs(pixels[0][index + 2] - pixels[1][index + 2])) >= threshold) {
-        group.changed++;
-      }
-    }
+    const counts = measureDifference(source, result, setup, threshold);
     const label = (group) => group.total
       ? `${group.changed.toLocaleString()} / ${group.total.toLocaleString()} (${(100 * group.changed / group.total).toFixed(1)}%)`
       : 'no pixels';
     $('difference-readout').textContent =
       `Outside mask: ${label(counts.outside)} changed. Inside mask: ${label(counts.inside)} changed. ` +
-      `${width} × ${height} sampled pixels; any RGB channel differs by at least ${threshold}.`;
+      `${setup.width} × ${setup.height} sampled pixels; any RGB channel differs by at least ${threshold}.`;
   } catch {
     $('difference-readout').textContent = 'Could not read these video frames for a pixel check.';
+  }
+}
+
+function waitForVideo(video, eventName) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => finish(false), 12000);
+    const ready = () => finish(true);
+    const failed = () => finish(false);
+    function finish(ok) {
+      clearTimeout(timeout);
+      video.removeEventListener(eventName, ready);
+      video.removeEventListener('error', failed);
+      if (ok) resolve();
+      else reject(new Error('Video frame was unavailable.'));
+    }
+    video.addEventListener(eventName, ready);
+    video.addEventListener('error', failed);
+  });
+}
+
+async function scanVideo(url) {
+  const video = document.createElement('video');
+  video.preload = 'auto';
+  video.muted = true;
+  const ready = waitForVideo(video, 'loadeddata');
+  video.src = url;
+  video.load();
+  await ready;
+  return video;
+}
+
+async function seekScanVideo(video, seconds) {
+  if (Math.abs(video.currentTime - seconds) < 0.005 && video.readyState >= 2) return;
+  const ready = waitForVideo(video, 'seeked');
+  video.currentTime = seconds;
+  await ready;
+  if (video.readyState < 2) await waitForVideo(video, 'loadeddata');
+}
+
+async function scanNearbyFrames() {
+  if (scanBusy || !maskPoints.some((point) => point.kind === 'include') || !clips.result) return;
+  clearScan();
+  if (source.videoWidth !== result.videoWidth || source.videoHeight !== result.videoHeight) {
+    $('flicker-readout').textContent = 'Clip resolutions differ. Use matching dimensions for this scan.';
+    return;
+  }
+  if (result.duration <= maskTime) {
+    $('flicker-readout').textContent = 'The result clip ends before the marked frame.';
+    return;
+  }
+  const times = [-0.25, -0.125, 0, 0.125, 0.25]
+    .map((offset) => maskTime + offset)
+    .filter((time) => time >= start && time <= end && time >= 0 &&
+      time < source.duration - 0.02 && time < result.duration - 0.02);
+  if (times.length < 2) {
+    $('flicker-readout').textContent = 'The marked frame is too close to the clip or range edge for a nearby scan.';
+    return;
+  }
+  const revision = scanRevision;
+  const setup = differenceSetup();
+  const threshold = Number($('difference-threshold').value);
+  let original;
+  let edited;
+  scanBusy = true;
+  updateDifferenceAvailability();
+  $('flicker-readout').textContent = `Scanning ${times.length} local frames…`;
+  try {
+    [original, edited] = await Promise.all([scanVideo(clips.source.url), scanVideo(clips.result.url)]);
+    const samples = [];
+    let previousFlags = null;
+    for (const time of times) {
+      if (revision !== scanRevision) return;
+      await Promise.all([seekScanVideo(original, time), seekScanVideo(edited, time)]);
+      const counts = measureDifference(original, edited, setup, threshold, true);
+      const outside = counts.outside;
+      if (!outside.total) {
+        $('flicker-readout').textContent = 'The mask covers the frame, leaving no outside pixels to scan.';
+        return;
+      }
+      let turnover = null;
+      if (previousFlags) {
+        let flipped = 0;
+        for (let index = 0; index < counts.outsideFlags.length; index++) {
+          if (counts.outsideFlags[index] !== previousFlags[index]) flipped++;
+        }
+        turnover = 100 * flipped / outside.total;
+      }
+      samples.push({ time, percent: 100 * outside.changed / outside.total, turnover });
+      previousFlags = counts.outsideFlags;
+    }
+    if (revision !== scanRevision) return;
+    const rates = samples.map((sample) => sample.percent);
+    const spread = Math.max(...rates) - Math.min(...rates);
+    const maxTurnover = Math.max(...samples.slice(1).map((sample) => sample.turnover));
+    $('flicker-readout').textContent =
+      `${samples.length} frames near ${timeLabel(maskTime)}: outside-mask changed pixels ranged ` +
+      `${Math.min(...rates).toFixed(1)}–${Math.max(...rates).toFixed(1)}% ` +
+      `(${spread.toFixed(1)} percentage points). Up to ${maxTurnover.toFixed(1)}% of outside pixels ` +
+      `switched changed/unchanged between adjacent samples. Fixed mask, ${setup.width} × ${setup.height} sample, ` +
+      `RGB threshold ${threshold}. Motion can also change these rates; inspect the frames before calling it flicker.`;
+    for (const sample of samples) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = `${timeLabel(sample.time)} · ${sample.percent.toFixed(1)}%`;
+      button.title = 'Jump to this sampled frame in the wipe view';
+      button.addEventListener('click', () => {
+        pauseClips();
+        seekTo(sample.time);
+      });
+      $('flicker-samples').append(button);
+    }
+  } catch {
+    if (revision === scanRevision) $('flicker-readout').textContent = 'Could not decode the nearby frames in this browser.';
+  } finally {
+    for (const video of [original, edited]) {
+      if (video) {
+        video.removeAttribute('src');
+        video.load();
+      }
+    }
+    scanBusy = false;
+    updateDifferenceAvailability();
   }
 }
 
@@ -294,6 +438,7 @@ function resetMask() {
   selectedPoint = -1;
   activePointer = null;
   clearDifference();
+  clearScan();
   updateMaskReadout();
   redrawMask();
 }
@@ -336,6 +481,7 @@ function markFrame(event) {
   maskPoints.push({ x: x / rect.width, y: y / rect.height,
                     radius: Number($('mask-radius').value) / 100, kind: maskMode });
   clearDifference();
+  clearScan();
   updateMaskReadout();
   redrawMask();
 }
@@ -348,6 +494,7 @@ function moveMaskPoint(event) {
   maskPoints[selectedPoint].x = Math.max(0, Math.min(1, x / rect.width));
   maskPoints[selectedPoint].y = Math.max(0, Math.min(1, y / rect.height));
   clearDifference();
+  clearScan();
   redrawMask();
 }
 
@@ -361,6 +508,7 @@ function deleteMaskPoint() {
   if (selectedPoint < 0) return;
   maskPoints.splice(selectedPoint, 1);
   clearDifference();
+  clearScan();
   selectedPoint = -1;
   if (!maskPoints.length) {
     resetMask();
@@ -433,6 +581,7 @@ async function openDraft(file) {
     maskTime = draft.mask.time;
     maskPoints.splice(0, maskPoints.length, ...draft.mask.points);
     clearDifference();
+    clearScan();
     selectedPoint = -1;
     activePointer = null;
     showRange();
@@ -448,6 +597,7 @@ async function openDraft(file) {
 function loadClip(kind, url, name, bytes, owned) {
   pauseClips();
   clearDifference();
+  clearScan();
   if (clips[kind]?.owned) URL.revokeObjectURL(clips[kind].url);
   clips[kind] = { url, owned };
   if (kind === 'source') {
@@ -594,6 +744,7 @@ $('use-full').addEventListener('click', () => {
   start = 0;
   end = source.duration;
   pauseClips();
+  clearScan();
   showRange();
   seekTo(0);
 });
@@ -648,8 +799,10 @@ $('mask-radius').addEventListener('input', () => {
 $('difference-threshold').addEventListener('input', () => {
   $('difference-threshold-value').textContent = $('difference-threshold').value;
   clearDifference();
+  clearScan();
 });
 $('mask-difference').addEventListener('click', checkDifference);
+$('flicker-scan').addEventListener('click', scanNearbyFrames);
 $('mask-canvas').addEventListener('pointerdown', markFrame);
 $('mask-canvas').addEventListener('pointermove', moveMaskPoint);
 $('mask-canvas').addEventListener('pointerup', finishMaskMove);
