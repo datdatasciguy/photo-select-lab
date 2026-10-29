@@ -69,10 +69,12 @@ With both clips loaded, the wipe view shows the result to the left of its line
 and the original to the right. Drag the slider to inspect a change at the
 current time; mismatched clip sizes are fitted into the same view and called out.
 The white-on-transparent PNG exports at the source resolution without video
-pixels. Save draft JSON to keep the selected range and mask circles, then load
-the same original clip and reopen the JSON
-later. The file contains settings only; matching resolution and duration helps
-catch mixups but cannot identify a clip. The mask belongs to one frame; it
+pixels. Save draft JSON to keep the selected range, mask circles, current
+position, wipe setting, and RGB threshold. If you saved a result comparison,
+load both clips again before opening the draft. Older range-and-mask drafts
+still open. The file contains settings only; matching resolution and duration
+helps catch mixups but cannot identify
+either clip. The mask belongs to one frame; it
 does not track a subject through the clip. With a matching result clip, pause at
 the marked frame and use **Check changed pixels** to see how many pixels differ
 inside and outside the mask. The RGB threshold ignores small color changes;

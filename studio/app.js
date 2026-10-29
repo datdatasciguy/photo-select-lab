@@ -521,10 +521,18 @@ function deleteMaskPoint() {
 function downloadDraft() {
   if (!source.videoWidth || !Number.isFinite(source.duration)) return;
   const draft = {
-    version: 1,
+    version: 2,
     source: { width: source.videoWidth, height: source.videoHeight, duration: source.duration },
     range: { start, end },
-    mask: { time: maskTime, points: maskPoints }
+    mask: { time: maskTime, points: maskPoints },
+    review: {
+      result: clips.result && result.videoWidth && Number.isFinite(result.duration) && result.duration > 0
+        ? { width: result.videoWidth, height: result.videoHeight, duration: result.duration }
+        : null,
+      position: Math.max(start, Math.min(end, source.currentTime)),
+      wipe: Number($('compare-wipe').value),
+      threshold: Number($('difference-threshold').value)
+    }
   };
   const url = URL.createObjectURL(new Blob([JSON.stringify(draft, null, 2) + '\n'], { type: 'application/json' }));
   const link = document.createElement('a');
@@ -532,12 +540,12 @@ function downloadDraft() {
   link.download = 'photo-select-draft.json';
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-  setStatus('Saved range and mask settings. The JSON contains no video or image pixels.');
+  setStatus('Saved the review settings. The JSON contains no video or image pixels.');
 }
 
 function validDraft(draft) {
   const finite = (value) => typeof value === 'number' && Number.isFinite(value);
-  if (!draft || draft.version !== 1 || !draft.source || !draft.range || !draft.mask) return false;
+  if (!draft || ![1, 2].includes(draft.version) || !draft.source || !draft.range || !draft.mask) return false;
   const { width, height, duration } = draft.source;
   const { start: rangeStart, end: rangeEnd } = draft.range;
   const { time, points } = draft.mask;
@@ -547,10 +555,22 @@ function validDraft(draft) {
   if (!Array.isArray(points) || points.length > 500 ||
       (time !== null && (!finite(time) || time < rangeStart || time > rangeEnd)) ||
       (points.length > 0 && time === null)) return false;
-  return points.every((point) => point && finite(point.x) && finite(point.y) &&
+  const validPoints = points.every((point) => point && finite(point.x) && finite(point.y) &&
     finite(point.radius) && point.x >= 0 && point.x <= 1 &&
     point.y >= 0 && point.y <= 1 && point.radius >= 0.02 && point.radius <= 0.3 &&
     ['include', 'exclude'].includes(point.kind));
+  if (!validPoints) return false;
+  if (draft.version === 1) return true;
+  const review = draft.review;
+  if (!review || !finite(review.position) || review.position < rangeStart ||
+      review.position > rangeEnd || !Number.isInteger(review.wipe) ||
+      review.wipe < 0 || review.wipe > 100 || !Number.isInteger(review.threshold) ||
+      review.threshold < 1 || review.threshold > 128) return false;
+  if (review.result === null) return true;
+  const comparison = review.result;
+  return comparison && Number.isInteger(comparison.width) && comparison.width > 0 &&
+    Number.isInteger(comparison.height) && comparison.height > 0 &&
+    finite(comparison.duration) && comparison.duration > 0;
 }
 
 async function openDraft(file) {
@@ -575,6 +595,14 @@ async function openDraft(file) {
       setStatus('Draft dimensions or duration do not match this clip. Load the original used for that draft.');
       return;
     }
+    if (draft.version === 2 && draft.review.result &&
+        (!clips.result || !result.videoWidth || !Number.isFinite(result.duration) ||
+         draft.review.result.width !== result.videoWidth ||
+         draft.review.result.height !== result.videoHeight ||
+         Math.abs(draft.review.result.duration - result.duration) > 0.05)) {
+      setStatus('Load the result clip used for this review. Its dimensions or duration do not match.');
+      return;
+    }
     pauseClips();
     start = draft.range.start;
     end = Math.min(source.duration, draft.range.end);
@@ -584,11 +612,18 @@ async function openDraft(file) {
     clearScan();
     selectedPoint = -1;
     activePointer = null;
+    if (draft.version === 2) {
+      $('compare-wipe').value = String(draft.review.wipe);
+      $('compare-percent').textContent = draft.review.wipe + '%';
+      $('difference-threshold').value = String(draft.review.threshold);
+      $('difference-threshold-value').textContent = String(draft.review.threshold);
+    }
     showRange();
-    seekTo(maskTime ?? start);
+    seekTo(draft.version === 2 ? draft.review.position : maskTime ?? start);
+    scheduleComparison();
     updateMaskReadout();
     redrawMask();
-    setStatus('Draft restored. Check that this is the same original clip; duration and dimensions alone cannot prove it.');
+    setStatus('Review restored. Check the loaded clips by eye; duration and dimensions alone cannot prove identity.');
   } catch {
     setStatus('Could not read that draft JSON.');
   }
