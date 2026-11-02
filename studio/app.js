@@ -7,6 +7,7 @@ const compareCanvas = $('compare-canvas');
 let compareFrame = null;
 let start = 0;
 let end = 0;
+let sheetBusy = false;
 
 function timeLabel(seconds) {
   if (!Number.isFinite(seconds)) return '0:00.00';
@@ -137,6 +138,7 @@ function updateRange(changed) {
   }
   pauseClips();
   clearScan();
+  clearSheet();
   showRange();
   seekTo(start);
 }
@@ -314,6 +316,95 @@ async function seekScanVideo(video, seconds) {
   video.currentTime = seconds;
   await ready;
   if (video.readyState < 2) await waitForVideo(video, 'loadeddata');
+}
+
+function clearSheet() {
+  $('sheet-canvas').hidden = true;
+  $('download-sheet').disabled = true;
+  $('sheet-readout').textContent = 'No sheet built yet.';
+}
+
+async function buildContactSheet() {
+  if (sheetBusy || !clips.source || !source.videoWidth) return;
+  clearSheet();
+  if (clips.result && (!result.videoWidth || result.duration < end - 0.05)) {
+    $('sheet-readout').textContent = 'Load a result that covers the whole selected range, or remove it.';
+    return;
+  }
+  const originalUrl = clips.source.url;
+  const resultUrl = clips.result?.url;
+  const rangeStart = start;
+  const rangeEnd = end;
+  const canvas = $('sheet-canvas');
+  const width = 320;
+  const height = 180;
+  const rowHeight = height + 28;
+  const columns = resultUrl ? 2 : 1;
+  canvas.width = width * columns;
+  canvas.height = rowHeight * 6;
+  const context = canvas.getContext('2d');
+  context.fillStyle = '#101720';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  let original;
+  let edited;
+  sheetBusy = true;
+  $('build-sheet').disabled = true;
+  $('sheet-readout').textContent = 'Sampling six local moments…';
+  try {
+    original = await scanVideo(originalUrl);
+    if (resultUrl) edited = await scanVideo(resultUrl);
+    for (let index = 0; index < 6; index++) {
+      if (clips.source?.url !== originalUrl || clips.result?.url !== resultUrl ||
+          start !== rangeStart || end !== rangeEnd) return;
+      const time = rangeStart + (rangeEnd - rangeStart) * (index + 0.5) / 6;
+      await seekScanVideo(original, time);
+      if (edited) await seekScanVideo(edited, time);
+      for (const [column, video] of [original, edited].filter(Boolean).entries()) {
+        const x = column * width;
+        const y = index * rowHeight;
+        context.fillStyle = '#dce9e5';
+        context.font = '12px system-ui, sans-serif';
+        context.fillText(`${timeLabel(time)} · ${column ? 'Result' : 'Original'}`, x + 10, y + 18);
+        context.save();
+        context.translate(x, y + 28);
+        context.fillStyle = '#05080c';
+        context.fillRect(0, 0, width, height);
+        drawContained(video, context, width, height);
+        context.restore();
+      }
+    }
+    canvas.hidden = false;
+    $('download-sheet').disabled = false;
+    $('sheet-readout').textContent = 'Six moments from the selected range. Check the frames before saving; the PNG stays on this computer.';
+  } catch {
+    $('sheet-readout').textContent = 'Could not decode the selected range in this browser.';
+  } finally {
+    for (const video of [original, edited]) {
+      if (video) {
+        video.removeAttribute('src');
+        video.load();
+      }
+    }
+    sheetBusy = false;
+    $('build-sheet').disabled = !source.videoWidth;
+  }
+}
+
+function downloadContactSheet() {
+  if ($('sheet-canvas').hidden) return;
+  $('sheet-canvas').toBlob((blob) => {
+    if (!blob) {
+      setStatus('Could not create the contact sheet PNG.');
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'photo-select-contact-sheet.png';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setStatus('Saved the contact sheet locally. No video was sent to a server.');
+  }, 'image/png');
 }
 
 async function scanNearbyFrames() {
@@ -610,6 +701,7 @@ async function openDraft(file) {
     maskPoints.splice(0, maskPoints.length, ...draft.mask.points);
     clearDifference();
     clearScan();
+    clearSheet();
     selectedPoint = -1;
     activePointer = null;
     if (draft.version === 2) {
@@ -633,10 +725,13 @@ function loadClip(kind, url, name, bytes, owned) {
   pauseClips();
   clearDifference();
   clearScan();
+  clearSheet();
   if (clips[kind]?.owned) URL.revokeObjectURL(clips[kind].url);
   clips[kind] = { url, owned };
   if (kind === 'source') {
     resetMask();
+    $('sheet-panel').hidden = true;
+    $('build-sheet').disabled = true;
     for (const id of ['play-toggle', 'step-back', 'step-forward', 'scrubber', 'range-start', 'range-end', 'use-full', 'save-draft', 'open-draft']) {
       $(id).disabled = true;
     }
@@ -670,6 +765,8 @@ function onMetadata(kind) {
     return;
   }
   if (kind === 'source') {
+    $('sheet-panel').hidden = false;
+    $('build-sheet').disabled = false;
     start = 0;
     end = video.duration;
     for (const id of ['play-toggle', 'step-back', 'step-forward', 'scrubber', 'range-start', 'range-end', 'use-full', 'save-draft', 'open-draft']) {
@@ -682,6 +779,7 @@ function onMetadata(kind) {
     showRange();
     seekTo(0);
   } else {
+    clearSheet();
     $('detail-result').textContent = timeLabel(video.duration);
     seekTo(source.currentTime);
     if (clips.source && video.duration + 0.05 < end) {
@@ -780,6 +878,7 @@ $('use-full').addEventListener('click', () => {
   end = source.duration;
   pauseClips();
   clearScan();
+  clearSheet();
   showRange();
   seekTo(0);
 });
@@ -838,6 +937,8 @@ $('difference-threshold').addEventListener('input', () => {
 });
 $('mask-difference').addEventListener('click', checkDifference);
 $('flicker-scan').addEventListener('click', scanNearbyFrames);
+$('build-sheet').addEventListener('click', buildContactSheet);
+$('download-sheet').addEventListener('click', downloadContactSheet);
 $('mask-canvas').addEventListener('pointerdown', markFrame);
 $('mask-canvas').addEventListener('pointermove', moveMaskPoint);
 $('mask-canvas').addEventListener('pointerup', finishMaskMove);

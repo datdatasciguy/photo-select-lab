@@ -60,6 +60,14 @@
           <p id="compare-note">The result appears to the left of the line.</p>
         </section>
 
+        <section class="sheet-panel" id="sheet-panel" aria-label="Range contact sheet" hidden>
+          <div class="compare-heading"><div><span class="eyebrow">RANGE REVIEW</span><h2>See six moments together.</h2></div></div>
+          <p>Build a local contact sheet from the selected range. If a result is loaded, it appears beside the original.</p>
+          <div class="sheet-actions"><button class="secondary" id="build-sheet" type="button">Build contact sheet</button><button class="secondary" id="download-sheet" type="button" disabled>Download PNG</button></div>
+          <canvas id="sheet-canvas" aria-label="Six sampled moments from the selected range" hidden></canvas>
+          <p id="sheet-readout" role="status">No sheet built yet.</p>
+        </section>
+
         <section class="transport" aria-label="Playback controls">
           <div class="transport-row"><button class="play-button" id="play-toggle" type="button" disabled aria-label="Play selected clip">▶</button><button class="step-button" id="step-back" type="button" disabled aria-label="Nudge back about 0.04 seconds">−0.04s</button><button class="step-button" id="step-forward" type="button" disabled aria-label="Nudge forward about 0.04 seconds">+0.04s</button><span class="time-label"><strong id="current-time">0:00.00</strong> / <span id="total-time">0:00.00</span></span></div>
           <input id="scrubber" class="scrubber" type="range" min="0" max="1" step="0.01" value="0" disabled aria-label="Clip position">
