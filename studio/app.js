@@ -8,6 +8,7 @@ let compareFrame = null;
 let start = 0;
 let end = 0;
 let sheetBusy = false;
+let sheetTimes = [];
 
 function timeLabel(seconds) {
   if (!Number.isFinite(seconds)) return '0:00.00';
@@ -319,9 +320,21 @@ async function seekScanVideo(video, seconds) {
 }
 
 function clearSheet() {
+  sheetTimes = [];
   $('sheet-canvas').hidden = true;
   $('download-sheet').disabled = true;
+  $('sheet-jumps').replaceChildren();
   $('sheet-readout').textContent = 'No sheet built yet.';
+}
+
+function jumpToSheetRow(index) {
+  if ($('sheet-canvas').hidden || !Number.isFinite(sheetTimes[index])) return;
+  pauseClips();
+  seekTo(sheetTimes[index]);
+  for (const [position, button] of [...$('sheet-jumps').children].entries()) {
+    button.setAttribute('aria-pressed', String(position === index));
+  }
+  $('sheet-readout').textContent = `Showing sample ${index + 1} at ${timeLabel(sheetTimes[index])}.`;
 }
 
 async function buildContactSheet() {
@@ -343,6 +356,7 @@ async function buildContactSheet() {
   canvas.width = width * columns;
   canvas.height = rowHeight * 6;
   const context = canvas.getContext('2d');
+  const sampleTimes = [];
   context.fillStyle = '#101720';
   context.fillRect(0, 0, canvas.width, canvas.height);
   let original;
@@ -357,6 +371,7 @@ async function buildContactSheet() {
       if (clips.source?.url !== originalUrl || clips.result?.url !== resultUrl ||
           start !== rangeStart || end !== rangeEnd) return;
       const time = rangeStart + (rangeEnd - rangeStart) * (index + 0.5) / 6;
+      sampleTimes.push(time);
       await seekScanVideo(original, time);
       if (edited) await seekScanVideo(edited, time);
       for (const [column, video] of [original, edited].filter(Boolean).entries()) {
@@ -373,9 +388,21 @@ async function buildContactSheet() {
         context.restore();
       }
     }
+    if (clips.source?.url !== originalUrl || clips.result?.url !== resultUrl ||
+        start !== rangeStart || end !== rangeEnd) return;
+    sheetTimes = sampleTimes;
+    for (const [index, time] of sheetTimes.entries()) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = timeLabel(time);
+      button.setAttribute('aria-label', `Jump to sample ${index + 1} at ${timeLabel(time)}`);
+      button.setAttribute('aria-pressed', 'false');
+      button.addEventListener('click', () => jumpToSheetRow(index));
+      $('sheet-jumps').append(button);
+    }
     canvas.hidden = false;
     $('download-sheet').disabled = false;
-    $('sheet-readout').textContent = 'Six moments from the selected range. Check the frames before saving; the PNG stays on this computer.';
+    $('sheet-readout').textContent = 'Select a sample to inspect that moment in both viewers. The PNG stays on this computer.';
   } catch {
     $('sheet-readout').textContent = 'Could not decode the selected range in this browser.';
   } finally {
@@ -939,6 +966,12 @@ $('mask-difference').addEventListener('click', checkDifference);
 $('flicker-scan').addEventListener('click', scanNearbyFrames);
 $('build-sheet').addEventListener('click', buildContactSheet);
 $('download-sheet').addEventListener('click', downloadContactSheet);
+$('sheet-canvas').addEventListener('click', (event) => {
+  const rect = event.currentTarget.getBoundingClientRect();
+  if (!rect.height) return;
+  const index = Math.floor((event.clientY - rect.top) / rect.height * sheetTimes.length);
+  jumpToSheetRow(index);
+});
 $('mask-canvas').addEventListener('pointerdown', markFrame);
 $('mask-canvas').addEventListener('pointermove', moveMaskPoint);
 $('mask-canvas').addEventListener('pointerup', finishMaskMove);

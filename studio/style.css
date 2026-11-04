@@ -68,8 +68,12 @@ video { width: 100%; height: 100%; object-fit: contain; display: block; }
 .sheet-panel p { color: #9eb8b2; font-size: 11px; line-height: 1.5; }
 .sheet-actions { display: flex; gap: 8px; margin: 12px 0; }
 .sheet-actions button { flex: 1; }
-#sheet-canvas { display: block; width: 100%; max-width: 640px; height: auto; border-radius: 6px; }
+#sheet-canvas { display: block; width: 100%; max-width: 640px; height: auto; border-radius: 6px; cursor: pointer; }
 #sheet-canvas[hidden] { display: none; }
+.sheet-jumps { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.sheet-jumps button { padding: 6px 9px; border: 1px solid #36534f; border-radius: 6px; background: #203638; color: #dce9e5; cursor: pointer; }
+.sheet-jumps button:hover, .sheet-jumps button:focus-visible { border-color: #8bdcc9; }
+.sheet-jumps button[aria-pressed="true"] { border-color: #8bdcc9; background: #315652; }
 .transport { margin-top: 15px; padding: 15px 17px 12px; border: 1px solid #34434e; border-radius: 10px; background: #151f29; }
 .transport-row { display: flex; align-items: center; gap: 8px; }
 .play-button { height: 36px; width: 42px; border: 0; border-radius: 7px; color: #0d2c26; background: #8bdcc9; font-size: 14px; }

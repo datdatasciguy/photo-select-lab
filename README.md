@@ -70,7 +70,8 @@ and the original to the right. Drag the slider to inspect a change at the
 current time; mismatched clip sizes are fitted into the same view and called out.
 **Build contact sheet** samples six moments from the selected range without
 moving the viewer. It puts the result beside the original when both cover the
-range; you can inspect the sheet and save a PNG locally. The PNG contains sampled
+range; click a row or its time button to jump both viewers to that moment.
+You can inspect the sheet and save a PNG locally. The PNG contains sampled
 video frames, so keep it private if you used private clips.
 The white-on-transparent PNG exports at the source resolution without video
 pixels. Save draft JSON to keep the selected range, mask circles, current
