@@ -200,6 +200,7 @@ function updateMaskReadout() {
 }
 
 function clearDifference() {
+  $('difference-map').hidden = true;
   $('difference-readout').textContent = 'Check the marked frame to count changed pixels.';
 }
 
@@ -229,7 +230,7 @@ function differenceSetup() {
   return { width, height, maskPixels: maskContext.getImageData(0, 0, width, height).data };
 }
 
-function measureDifference(original, edited, setup, threshold, trackOutside = false) {
+function measureDifference(original, edited, setup, threshold, trackOutside = false, showMap = false) {
   const { width, height, maskPixels } = setup;
   const pixels = [];
   const outsideFlags = trackOutside ? new Uint8Array(width * height) : null;
@@ -242,6 +243,9 @@ function measureDifference(original, edited, setup, threshold, trackOutside = fa
     pixels.push(context.getImageData(0, 0, width, height).data);
   }
   const counts = { inside: { total: 0, changed: 0 }, outside: { total: 0, changed: 0 } };
+  const mapPixels = showMap ? new Uint8ClampedArray(pixels[0].length) : null;
+  const insideColor = [75, 220, 165];
+  const outsideColor = [255, 105, 90];
   for (let index = 0; index < pixels[0].length; index += 4) {
     const group = maskPixels[index + 3] > 0 ? counts.inside : counts.outside;
     group.total++;
@@ -250,12 +254,23 @@ function measureDifference(original, edited, setup, threshold, trackOutside = fa
                  Math.abs(pixels[0][index + 2] - pixels[1][index + 2])) >= threshold;
     if (changed) group.changed++;
     if (outsideFlags && group === counts.outside) outsideFlags[index / 4] = Number(changed);
+    if (mapPixels) {
+      const color = group === counts.inside ? insideColor : outsideColor;
+      for (let channel = 0; channel < 3; channel++) {
+        mapPixels[index + channel] = changed
+          ? pixels[0][index + channel] * 0.25 + color[channel] * 0.75
+          : pixels[0][index + channel] * 0.6;
+      }
+      mapPixels[index + 3] = 255;
+    }
   }
   counts.outsideFlags = outsideFlags;
+  counts.mapPixels = mapPixels;
   return counts;
 }
 
 function checkDifference() {
+  clearDifference();
   if (!maskPoints.some((point) => point.kind === 'include') || !clips.result) return;
   if (source.videoWidth !== result.videoWidth || source.videoHeight !== result.videoHeight) {
     $('difference-readout').textContent = 'Clip resolutions differ. Use matching dimensions for a pixel check.';
@@ -271,7 +286,15 @@ function checkDifference() {
   try {
     const setup = differenceSetup();
     const threshold = Number($('difference-threshold').value);
-    const counts = measureDifference(source, result, setup, threshold);
+    const counts = measureDifference(source, result, setup, threshold, false, true);
+    const canvas = $('difference-map');
+    canvas.width = setup.width;
+    canvas.height = setup.height;
+    const context = canvas.getContext('2d');
+    const image = context.createImageData(setup.width, setup.height);
+    image.data.set(counts.mapPixels);
+    context.putImageData(image, 0, 0);
+    canvas.hidden = false;
     const label = (group) => group.total
       ? `${group.changed.toLocaleString()} / ${group.total.toLocaleString()} (${(100 * group.changed / group.total).toFixed(1)}%)`
       : 'no pixels';

@@ -95,10 +95,12 @@
           <button class="secondary mask-download" id="mask-download" type="button" disabled>Download mask PNG</button>
           <p class="mask-readout" id="mask-readout">Load an original clip to start.</p>
           <h3>Check this frame</h3>
-          <p>Count changed pixels inside and outside the mask at the marked time. Both clips need the same resolution.</p>
+          <p>Count and locate changed pixels at the marked time. Both clips need the same resolution.</p>
           <label class="mask-radius" for="difference-threshold">RGB difference threshold <span id="difference-threshold-value">24</span><input id="difference-threshold" type="range" min="1" max="128" step="1" value="24"></label>
           <button class="secondary mask-download" id="mask-difference" type="button" disabled>Check changed pixels</button>
           <p class="mask-readout" id="difference-readout" role="status">Mark a frame and load a result to compare.</p>
+          <canvas id="difference-map" role="img" aria-label="Dimmed original frame with changed pixels in green inside the mask and coral outside" hidden></canvas>
+          <p id="difference-legend">Green: changed inside mask · Coral: changed outside mask</p>
           <h3>Inspect nearby frames</h3>
           <p>Sample up to five frames within a quarter second of the mark. The mask stays fixed while you inspect how outside changes vary.</p>
           <button class="secondary mask-download" id="flicker-scan" type="button" disabled>Scan nearby frames</button>
