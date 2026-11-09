@@ -40,6 +40,18 @@ verdict. A perfectly sharp photo can still be the one you don't want.
 The [notebook](notebooks/review_baseline.ipynb) walks through blur, color, and a
 few grouping settings. You'll need Jupyter if you want to run it yourself.
 
+To see how this matcher handles crops and exposure changes on one photo:
+
+```bash
+python diagnose.py examples/demo/scene.png
+```
+
+The command makes two center crops and two brightness variants in memory. It
+reports the hash distance, color difference, and whether each variant still
+matches the original under the current grouping thresholds. Try a local photo
+to investigate a missed duplicate; nothing is saved or uploaded. These controlled
+changes are diagnostics, not a real-photo accuracy score.
+
 ## Speed check
 
 Run `python benchmark.py` to time scanning and grouping on throwaway generated
