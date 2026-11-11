@@ -16,7 +16,10 @@ python review.py examples/demo --output outputs/demo
 ```
 
 Open `outputs/demo/index.html`. You'll get thumbnails, groups, and a CSV with
-the image stats. The demo images are just generated shapes and colors.
+the image stats. Choose Keep, Reject, or Unsure on each card and save a versioned
+JSON label table when you're done. Load that file to continue later; labels only
+apply when every filename and file digest matches the report. Nothing is sent
+to a server. The demo images are just generated shapes and colors.
 
 For another folder:
 
