@@ -55,6 +55,22 @@ matches the original under the current grouping thresholds. Try a local photo
 to investigate a missed duplicate; nothing is saved or uploaded. These controlled
 changes are diagnostics, not a real-photo accuracy score.
 
+To turn reviewed Keep-versus-Reject choices into preference pairs, give each
+report a shoot ID and its saved labels:
+
+```bash
+python prepare_pairs.py --shoot demo outputs/demo /path/to/photo-review-labels.json --output outputs/demo-pairs.json
+```
+
+The tool checks every label against the report's filename, digest, group and
+rank. It pairs a kept image with a rejected image only inside the same group,
+skips identical files, and assigns whole shoots to train or validation with a
+repeatable seed. It stops if the same image lands in both splits. Add more
+`--shoot ID REPORT LABELS` entries for more shoots.
+Unlabeled and Unsure images make no pairs. The JSON contains filenames and
+choices, so keep it local. The pairs infer preference from those choices; they
+are not direct pairwise votes. This step does not fit a model or measure accuracy.
+
 ## Speed check
 
 Run `python benchmark.py` to time scanning and grouping on throwaway generated
