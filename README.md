@@ -71,6 +71,19 @@ Unlabeled and Unsure images make no pairs. The JSON contains filenames and
 choices, so keep it local. The pairs infer preference from those choices; they
 are not direct pairwise votes. This step does not fit a model or measure accuracy.
 
+To join those pairs to the fixed measurements in each report:
+
+```bash
+python preference_features.py outputs/demo-pairs.json --report demo outputs/demo --output outputs/demo-features.json
+```
+
+Repeat `--report ID FOLDER` for every shoot in the pairs file. The script checks
+filenames, digests, groups, and shoot splits against the reports. It scales
+aspect ratio, sharpness, brightness, dark fraction, and bright fraction using
+unique images from training pairs only; validation pairs use those same scales.
+The output keeps local filenames and review choices, so leave it in an ignored
+folder. It prepares inputs for a later ranker; it does not train or evaluate one.
+
 ## Speed check
 
 Run `python benchmark.py` to time scanning and grouping on throwaway generated
