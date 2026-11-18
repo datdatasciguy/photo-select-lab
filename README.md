@@ -82,7 +82,21 @@ filenames, digests, groups, and shoot splits against the reports. It scales
 aspect ratio, sharpness, brightness, dark fraction, and bright fraction using
 unique images from training pairs only; validation pairs use those same scales.
 The output keeps local filenames and review choices, so leave it in an ignored
-folder. It prepares inputs for a later ranker; it does not train or evaluate one.
+folder. It prepares inputs for a ranker; this step does not train or evaluate one.
+
+Fit a small linear pairwise baseline on those prepared pairs:
+
+```bash
+python train_ranker.py outputs/demo-features.json --output outputs/demo-ranker.json
+```
+
+The model uses the preferred-minus-other feature differences and gives each
+training shoot equal total weight. It saves feature scales, coefficients,
+training settings, the input file digest, and the count of validation pairs
+where the preferred image scores higher. Its JSON contains model weights and
+belongs only in an ignored local folder. Demo labels check the training code;
+they do not establish real-photo ranking quality. Keep actual review data and
+future held-out evaluation local too.
 
 ## Speed check
 
