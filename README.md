@@ -98,6 +98,18 @@ belongs only in an ignored local folder. Demo labels check the training code;
 they do not establish real-photo ranking quality. Keep actual review data and
 future held-out evaluation local too.
 
+To inspect its held-out choices against the existing sharpness order:
+
+```bash
+python evaluate_ranker.py outputs/demo-features.json outputs/demo-ranker.json --output outputs/demo-ranking-review.json
+```
+
+This checks the feature-file digest saved with the model, then reports counts
+by validation shoot and lists pairs where the ranker and sharpness disagree.
+It never evaluates training pairs. With no held-out pairs, it says so; the
+procedural demo cannot support a real-photo quality claim. The review output
+contains local filenames and stays ignored.
+
 ## Speed check
 
 Run `python benchmark.py` to time scanning and grouping on throwaway generated
