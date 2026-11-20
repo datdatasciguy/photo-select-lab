@@ -98,6 +98,21 @@ belongs only in an ignored local folder. Demo labels check the training code;
 they do not establish real-photo ranking quality. Keep actual review data and
 future held-out evaluation local too.
 
+For direct image choices, make a second local review page from an existing
+report:
+
+```bash
+python pair_review.py outputs/demo
+```
+
+Open `outputs/demo/pair-review.html`. It puts the group's current top-ranked
+image beside up to four distinct alternatives, with Left, Right, Tie and
+Unsure choices. Save the versioned votes JSON before closing; loading it back
+checks every pair ID, group and image digest. This page collects direct
+choices separately from the Keep/Reject labels above. It does not retrain the
+ranker automatically. Thumbnails and vote files can reveal private photos or
+filenames, so keep the report and votes local.
+
 To inspect its held-out choices against the existing sharpness order:
 
 ```bash
