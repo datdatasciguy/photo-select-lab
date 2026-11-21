@@ -29,9 +29,9 @@ def load_report(folder):
 def prepare_features(pairs_path, reports):
     payload = json.loads(Path(pairs_path).read_text(encoding="utf-8"))
     if (payload.get("schema_version") != 1
-            or payload.get("method") not in (None, "keep_over_reject_within_group")
+            or payload.get("method") not in (None, "keep_over_reject_within_group", "direct_pair_choice")
             or not isinstance(payload.get("pairs"), list)):
-        raise ValueError("Expected a version 1 Keep-over-Reject pairs file")
+        raise ValueError("Expected a version 1 reviewed pairs file")
     if not payload["pairs"]:
         raise ValueError("No reviewed pairs to prepare")
     report_rows = {shoot: load_report(folder) for shoot, folder in reports.items()}
@@ -75,7 +75,9 @@ def prepare_features(pairs_path, reports):
                              for value, mean, scale in zip(left, means, scales)]
         pair["other"] = [(value - mean) / scale
                          for value, mean, scale in zip(right, means, scales)]
-    return {"schema_version": 1, "feature_names": FEATURES,
+    return {"schema_version": 1,
+            "method": payload.get("method") or "keep_over_reject_within_group",
+            "feature_names": FEATURES,
             "scaling": {"fit_split": "train", "unique_train_images": len(training_images),
                         "mean": means, "scale": scales},
             "train_pairs": sum(row["split"] == "train" for row in prepared),

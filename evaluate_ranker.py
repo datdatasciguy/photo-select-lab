@@ -51,9 +51,12 @@ def evaluate(features, model, source_digest):
               for key in ("pairs", "model_higher", "sharpness_higher", "sharpness_ties")}
     if totals["pairs"] != features.get("validation_pairs") or totals["pairs"] != model.get("validation_pairs"):
         raise ValueError("Validation pair count does not match the prepared data and model")
+    method = features.get("method", "keep_over_reject_within_group")
+    label_method = ("Direct left/right votes" if method == "direct_pair_choice"
+                    else "Keep-over-Reject within groups; not direct pairwise votes")
     return {"schema_version": 1, "scope": "held_out_validation_pairs",
             "status": "diagnostic_only" if totals["pairs"] else "no_validation_pairs",
-            "method": "Keep-over-Reject within groups; not direct pairwise votes",
+            "method": label_method,
             "validation_shoots": len(by_shoot), "totals": totals,
             "by_shoot": dict(sorted(by_shoot.items())),
             "disagreements": disagreements,

@@ -113,6 +113,21 @@ choices separately from the Keep/Reject labels above. It does not retrain the
 ranker automatically. Thumbnails and vote files can reveal private photos or
 filenames, so keep the report and votes local.
 
+When you have saved direct votes, turn them into ranker input with the same
+shoot IDs and whole-shoot split used above:
+
+```bash
+python prepare_direct_pairs.py --shoot demo outputs/demo /path/to/photo-pair-votes.json --output outputs/demo-direct-pairs.json
+python preference_features.py outputs/demo-direct-pairs.json --report demo outputs/demo --output outputs/demo-direct-features.json
+```
+
+Only Left and Right votes become preference pairs. Ties, Unsure and blank
+choices stay counted but are not forced into a winner. The converter verifies
+every pair against the report and rejects identical images crossing training
+and validation shoots. If you used `--max-opponents` when making the page,
+pass the same value when preparing votes. Direct votes remain distinct from
+Keep/Reject-derived pairs through training and local evaluation.
+
 To inspect its held-out choices against the existing sharpness order:
 
 ```bash
