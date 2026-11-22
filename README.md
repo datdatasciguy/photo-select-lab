@@ -128,6 +128,18 @@ and validation shoots. If you used `--max-opponents` when making the page,
 pass the same value when preparing votes. Direct votes remain distinct from
 Keep/Reject-derived pairs through training and local evaluation.
 
+To inspect a saved model's order on an existing report:
+
+```bash
+python rank_report.py outputs/demo outputs/demo-ranker.json
+```
+
+Open `outputs/demo/ranker-review.html`. Each card shows its learned score and
+model position beside its original sharpness-based rank. The page stays with
+the report's local thumbnails and does not change the source photos. A model
+trained on demo choices is only a workflow check; its score is not a photo
+quality rating or evidence that ranking improved.
+
 To inspect its held-out choices against the existing sharpness order:
 
 ```bash

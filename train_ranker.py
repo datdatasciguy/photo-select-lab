@@ -65,6 +65,7 @@ def train(payload, epochs=300, learning_rate=0.1, l2=0.01):
         raise ValueError("Training loss increased; reduce the learning rate")
     validation_margins = x_validation @ weights
     return {"schema_version": 1, "model": "linear_pairwise_logistic",
+            "method": payload.get("method", "keep_over_reject_within_group"),
             "feature_names": names, "weights": weights.tolist(),
             "scaling": payload["scaling"], "training_shoots": len(shoots),
             "train_pairs": len(training), "validation_pairs": len(validation),
