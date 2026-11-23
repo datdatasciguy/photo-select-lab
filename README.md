@@ -136,9 +136,12 @@ python rank_report.py outputs/demo outputs/demo-ranker.json
 
 Open `outputs/demo/ranker-review.html`. Each card shows its learned score and
 model position beside its original sharpness-based rank. The page stays with
-the report's local thumbnails and does not change the source photos. A model
-trained on demo choices is only a workflow check; its score is not a photo
-quality rating or evidence that ranking improved.
+the report's local thumbnails and does not change the source photos. You can
+save and reload Keep/Reject/Unsure labels in the same JSON format as the
+original report, including the original rank. Keep that file local. Reviewing
+in model order can influence choices, so judge ranking on independent held-out
+reviews. A model trained on demo choices is only a workflow check; its score
+is not a photo quality rating or evidence that ranking improved.
 
 To inspect its held-out choices against the existing sharpness order:
 

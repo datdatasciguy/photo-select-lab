@@ -52,9 +52,17 @@ def format_html(grouped, model):
         cards = []
         for model_rank, row in enumerate(rows, 1):
             name = escape(row["file"])
-            cards.append(f'<article><img src="thumbnails/{row["sha256"]}.jpg" alt="{name}">'
+            cards.append(f'<article class="review-card" data-file="{escape(row["file"], quote=True)}" '
+                         f'data-sha256="{row["sha256"]}" data-group="{group}" '
+                         f'data-rank="{row["baseline_rank"]}">'
+                         f'<img src="thumbnails/{row["sha256"]}.jpg" alt="{name}">'
                          f'<div><strong>{name}</strong><p>Model #{model_rank} · '
-                         f'Original #{row["baseline_rank"]} · Score {row["score"]:.3f}</p></div></article>')
+                         f'Original #{row["baseline_rank"]} · Score {row["score"]:.3f}</p>'
+                         '<div class="choices" role="group" aria-label="Review choice">'
+                         '<button type="button" data-choice="keep">Keep</button>'
+                         '<button type="button" data-choice="reject">Reject</button>'
+                         '<button type="button" data-choice="unsure">Unsure</button>'
+                         '</div></div></article>')
         sections.append(f'<section><h2>Group {group} <small>{len(rows)} images</small></h2>'
                         f'<div class="grid">{"".join(cards)}</div></section>')
     method = ("direct pair votes" if model.get("method") == "direct_pair_choice"
@@ -69,10 +77,72 @@ p{{max-width:78ch}}section{{margin:28px 0}}small{{font-weight:normal;color:#6677
 article{{background:white;border:1px solid #d3dddf;border-radius:8px;overflow:hidden}}
 img{{width:100%;height:190px;object-fit:contain;background:#e6ebed}}
 article div{{padding:12px;overflow-wrap:anywhere}}article p{{font-size:13px;margin:6px 0 0}}
+.toolbar,.choices{{display:flex;gap:8px;flex-wrap:wrap;align-items:center}}.toolbar{{margin:20px 0}}
+button,.load{{font:inherit;border:1px solid #69818c;border-radius:6px;padding:7px 12px;background:white;cursor:pointer}}
+.load input{{display:none}}.choices button[aria-pressed=true]{{background:#195e70;color:white}}
 </style><h1>Local ranking review</h1>
 <p>Images appear in model order within each report group. Original # is the earlier sharpness-based review order. Scores are relative to this saved model, not calibrated photo quality. Keep the original report and photos local.</p>
 <p>Model input: {escape(method)} · {escape(str(model.get('train_pairs', 0)))} training pairs · {escape(str(model.get('validation_pairs', 0)))} validation pairs. Inspect real held-out choices before judging whether model order helps.</p>
-{''.join(sections)}</html>"""
+<p>Choose Keep, Reject, or Unsure and save labels before closing this page. Reviewing in model order can influence choices; use independent held-out reviews to judge ranking quality.</p>
+<div class="toolbar"><button type="button" id="save">Save labels JSON</button>
+<label class="load">Load labels JSON<input id="load" type="file" accept=".json,application/json"></label>
+<span id="status" role="status" aria-live="polite">No labels yet</span></div>
+{''.join(sections)}<script>
+const cards = [...document.querySelectorAll('.review-card')];
+const status = document.querySelector('#status');
+const choices = new Set(['keep', 'reject', 'unsure']);
+function setChoice(card, choice, reviewedAt) {{
+  card.dataset.choice = choice;
+  card.dataset.reviewedAt = reviewedAt;
+  for (const button of card.querySelectorAll('[data-choice]')) {{
+    button.setAttribute('aria-pressed', String(button.dataset.choice === choice));
+  }}
+  status.textContent = `${{cards.filter(item => item.dataset.choice).length}} of ${{cards.length}} labeled`;
+}}
+document.addEventListener('click', event => {{
+  const button = event.target.closest('.choices button');
+  if (button) setChoice(button.closest('.review-card'), button.dataset.choice, new Date().toISOString());
+}});
+document.querySelector('#save').addEventListener('click', () => {{
+  const rows = cards.map(card => ({{file: card.dataset.file, sha256: card.dataset.sha256,
+    group: Number(card.dataset.group), rank: Number(card.dataset.rank),
+    label: card.dataset.choice || '', reviewed_at: card.dataset.reviewedAt || ''}}));
+  const payload = {{schema_version: 1, exported_at: new Date().toISOString(), rows}};
+  const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2) + '\\n'],
+    {{type: 'application/json'}}));
+  const link = document.createElement('a');
+  link.href = url; link.download = 'photo-review-labels.json'; link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}});
+document.querySelector('#load').addEventListener('change', async event => {{
+  const file = event.target.files[0];
+  if (!file) return;
+  try {{
+    const payload = JSON.parse(await file.text());
+    if (payload.schema_version !== 1 || !Array.isArray(payload.rows))
+      throw new Error('Unsupported labels file');
+    const current = new Map(cards.map(card => [card.dataset.file + ':' + card.dataset.sha256, card]));
+    const seen = new Set();
+    for (const row of payload.rows) {{
+      const key = row.file + ':' + row.sha256;
+      const card = current.get(key);
+      if (!card || seen.has(key) || row.group !== Number(card.dataset.group) ||
+          row.rank !== Number(card.dataset.rank) || typeof row.label !== 'string' ||
+          (row.label && !choices.has(row.label)) || typeof row.reviewed_at !== 'string')
+        throw new Error('Labels do not match this report');
+      seen.add(key);
+    }}
+    if (seen.size !== cards.length) throw new Error('Labels do not match this report');
+    for (const row of payload.rows) {{
+      setChoice(current.get(row.file + ':' + row.sha256), row.label, row.reviewed_at);
+    }}
+    status.textContent += ' (loaded)';
+  }} catch (error) {{
+    status.textContent = error.message;
+  }}
+  event.target.value = '';
+}});
+</script></html>"""
 
 def main():
     parser = argparse.ArgumentParser(description="Inspect local photo model order beside original report rank.")
