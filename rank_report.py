@@ -6,6 +6,7 @@ import re
 from collections import defaultdict
 from html import escape
 from pathlib import Path
+from random import Random
 
 from preference_features import FEATURES, load_report
 
@@ -46,18 +47,23 @@ def score_report(report, model):
         rows.sort(key=lambda row: (-row["score"], row["baseline_rank"], row["file"]))
     return dict(sorted(grouped.items()))
 
-def format_html(grouped, model):
+def format_html(grouped, model, shuffle=False, seed=42):
     sections = []
+    rng = Random(seed)
     for group, rows in grouped.items():
+        rows = list(rows)
+        if shuffle:
+            rng.shuffle(rows)
         cards = []
         for model_rank, row in enumerate(rows, 1):
             name = escape(row["file"])
+            order = ("Shuffled review" if shuffle else
+                     f'Model #{model_rank} · Original #{row["baseline_rank"]} · Score {row["score"]:.3f}')
             cards.append(f'<article class="review-card" data-file="{escape(row["file"], quote=True)}" '
                          f'data-sha256="{row["sha256"]}" data-group="{group}" '
                          f'data-rank="{row["baseline_rank"]}">'
                          f'<img src="thumbnails/{row["sha256"]}.jpg" alt="{name}">'
-                         f'<div><strong>{name}</strong><p>Model #{model_rank} · '
-                         f'Original #{row["baseline_rank"]} · Score {row["score"]:.3f}</p>'
+                         f'<div><strong>{name}</strong><p>{order}</p>'
                          '<div class="choices" role="group" aria-label="Review choice">'
                          '<button type="button" data-choice="keep">Keep</button>'
                          '<button type="button" data-choice="reject">Reject</button>'
@@ -68,6 +74,16 @@ def format_html(grouped, model):
     method = ("direct pair votes" if model.get("method") == "direct_pair_choice"
               else "Keep/Reject-derived pairs" if model.get("method") == "keep_over_reject_within_group"
               else "earlier pair export")
+    intro = (f"Images are shuffled within each group using seed {seed}. Model scores and "
+             "original ranks are hidden while you choose; filenames can still influence review. "
+             "The saved labels keep the original ranks for validation." if shuffle else
+             "Images appear in model order within each report group. Original # is the earlier "
+             "sharpness-based review order. Scores are relative to this saved model, not "
+             "calibrated photo quality.")
+    model_note = ("Ranking details are hidden during this review." if shuffle else
+                  f"Model input: {escape(method)} · {escape(str(model.get('train_pairs', 0)))} training "
+                  f"pairs · {escape(str(model.get('validation_pairs', 0)))} validation pairs. "
+                  "Inspect real held-out choices before judging whether model order helps.")
     return f"""<!doctype html><html lang="en"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Local ranking review</title>
 <style>
@@ -81,9 +97,9 @@ article div{{padding:12px;overflow-wrap:anywhere}}article p{{font-size:13px;marg
 button,.load{{font:inherit;border:1px solid #69818c;border-radius:6px;padding:7px 12px;background:white;cursor:pointer}}
 .load input{{display:none}}.choices button[aria-pressed=true]{{background:#195e70;color:white}}
 </style><h1>Local ranking review</h1>
-<p>Images appear in model order within each report group. Original # is the earlier sharpness-based review order. Scores are relative to this saved model, not calibrated photo quality. Keep the original report and photos local.</p>
-<p>Model input: {escape(method)} · {escape(str(model.get('train_pairs', 0)))} training pairs · {escape(str(model.get('validation_pairs', 0)))} validation pairs. Inspect real held-out choices before judging whether model order helps.</p>
-<p>Choose Keep, Reject, or Unsure and save labels before closing this page. Reviewing in model order can influence choices; use independent held-out reviews to judge ranking quality.</p>
+<p>{intro} Keep the original report and photos local.</p>
+<p>{model_note}</p>
+<p>Choose Keep, Reject, or Unsure and save labels before closing this page. Review independent held-out images before judging ranking quality.</p>
 <div class="toolbar"><button type="button" id="save">Save labels JSON</button>
 <label class="load">Load labels JSON<input id="load" type="file" accept=".json,application/json"></label>
 <span id="status" role="status" aria-live="polite">No labels yet</span></div>
@@ -149,9 +165,14 @@ def main():
     parser.add_argument("report", type=Path)
     parser.add_argument("model", type=Path)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--shuffle", action="store_true",
+                        help="Shuffle each group and hide rank and score while reviewing")
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Repeatable shuffle seed (default: 42)")
     args = parser.parse_args()
     report = args.report.resolve()
-    output = (args.output or report / "ranker-review.html").resolve()
+    default_name = "shuffled-review.html" if args.shuffle else "ranker-review.html"
+    output = (args.output or report / default_name).resolve()
     repo = Path(__file__).resolve().parent
     if output.parent != report:
         parser.error("Save the page beside the report thumbnails")
@@ -163,7 +184,7 @@ def main():
     try:
         model = json.loads(args.model.read_text(encoding="utf-8"))
         grouped = score_report(report, model)
-        output.write_text(format_html(grouped, model), encoding="utf-8")
+        output.write_text(format_html(grouped, model, args.shuffle, args.seed), encoding="utf-8")
     except (OSError, ValueError, KeyError, TypeError) as error:
         parser.exit(2, f"{error}\n")
     print(f"{sum(len(rows) for rows in grouped.values())} images in {len(grouped)} groups: {output}")

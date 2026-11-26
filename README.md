@@ -143,6 +143,13 @@ in model order can influence choices, so judge ranking on independent held-out
 reviews. A model trained on demo choices is only a workflow check; its score
 is not a photo quality rating or evidence that ranking improved.
 
+For a shuffled review that hides both model scores and earlier ranks while you
+choose, run `python rank_report.py outputs/demo outputs/demo-ranker.json --shuffle`.
+Open `outputs/demo/shuffled-review.html`. The shuffle is repeatable with `--seed`.
+Its label export still records original ranks so the existing preparation step
+can validate it. Filenames remain visible and may still influence choices;
+keep held-out reviews independent of training shoots.
+
 To inspect its held-out choices against the existing sharpness order:
 
 ```bash
