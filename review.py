@@ -9,7 +9,8 @@ from features import scan_images
 from group import group_images, review_order
 from report import write_report
 
-def run(folder, output, max_hash_distance=8, max_pixel_rmse=0.08):
+def run(folder, output, max_hash_distance=8, max_pixel_rmse=0.08,
+        shuffle_seed=None):
     root = Path(folder).resolve()
     output = Path(output).resolve()
     if not root.is_dir():
@@ -31,11 +32,13 @@ def run(folder, output, max_hash_distance=8, max_pixel_rmse=0.08):
     # Group, rank and write the review
     groups = group_images(records, max_hash_distance, max_pixel_rmse)
     rows = review_order(records, groups)
-    write_report(root, output, rows, errors)
+    write_report(root, output, rows, errors, shuffle_seed)
     settings = {
         "method": "dhash-rgb-complete-link",
         "max_hash_distance": max_hash_distance, "max_pixel_rmse": max_pixel_rmse,
         "images": len(records), "groups": len(groups), "errors": len(errors),
+        "review_order": "shuffled" if shuffle_seed is not None else "sharpness",
+        "shuffle_seed": shuffle_seed,
     }
     (output / "settings.json").write_text(json.dumps(settings, indent=2) + "\n",
                                         encoding="utf-8")
@@ -48,9 +51,12 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--hash-distance", type=int, default=8)
     parser.add_argument("--pixel-rmse", type=float, default=0.08)
+    parser.add_argument("--shuffle-seed", type=int,
+                        help="Shuffle cards within groups and hide displayed rank and image metrics")
     args = parser.parse_args()
     try:
-        summary = run(args.folder, args.output, args.hash_distance, args.pixel_rmse)
+        summary = run(args.folder, args.output, args.hash_distance,
+                      args.pixel_rmse, args.shuffle_seed)
     except (ValueError, OSError) as error:
         parser.exit(1, f"{error}\n")
     print(f'{summary["images"]} images in {summary["groups"]} groups. '

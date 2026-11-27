@@ -2,6 +2,7 @@ import csv
 from collections import defaultdict
 from html import escape
 from pathlib import Path
+from random import Random
 
 from features import open_rgb
 
@@ -18,17 +19,19 @@ def write_thumbnail(source, destination):
     image.info.clear()
     image.save(destination, quality=85)
 
-def image_card(row, thumbnail):
+def image_card(row, thumbnail, shuffled=False):
     filename = escape(row["file"], quote=True)
     digest = escape(row["sha256"], quote=True)
+    details = ("<p>Shuffled review</p>" if shuffled else
+               f'<p>Review order {row["rank"]} &middot; {row["width"]} × {row["height"]}</p>'
+               f'<p>Sharpness {row["sharpness"]:.5f} &middot; dark {row["dark_fraction"]:.1%}'
+               f' &middot; bright {row["bright_fraction"]:.1%}</p>')
     return (
         f'<article class="review-card" data-file="{filename}" data-sha256="{digest}" '
         f'data-group="{row["group"]}" data-rank="{row["rank"]}">'
         f'<img loading="lazy" src="thumbnails/{thumbnail}" alt="{filename}">'
         f'<div class="caption"><b>{filename}</b>'
-        f'<p>Review order {row["rank"]} &middot; {row["width"]} × {row["height"]}</p>'
-        f'<p>Sharpness {row["sharpness"]:.5f} &middot; dark {row["dark_fraction"]:.1%}'
-        f' &middot; bright {row["bright_fraction"]:.1%}</p>'
+        f'{details}'
         '<div class="choices" aria-label="Review choice">'
         '<button type="button" data-choice="keep" aria-pressed="false">Keep</button>'
         '<button type="button" data-choice="reject" aria-pressed="false">Reject</button>'
@@ -36,13 +39,18 @@ def image_card(row, thumbnail):
         '</div></div></article>'
     )
 
-def render_page(grouped, image_count, error_count):
+def render_page(grouped, image_count, error_count, shuffled=False):
     sections = []
     for number, cards in grouped.items():
         sections.append(f'<section><h2>Group {number} <small>{len(cards)} image(s)</small>'
                         '</h2><div class="grid">' + "".join(cards) + '</div></section>')
     error_note = (f'<p>{error_count} file(s) could not be analyzed. See errors.csv.</p>'
                   if error_count else "")
+    intro = ("Cards are shuffled within each group. Displayed rank and image metrics are hidden "
+             "while you choose, but filenames can still influence review. "
+             "Original ranks remain in the saved labels for validation." if shuffled else
+             "Review order uses a sharpness baseline, not a learned preference or an "
+             "artistic-quality score.")
     page = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Photo review</title><style>
@@ -59,8 +67,7 @@ section{margin:30px 0}.intro{max-width:800px}
 .file-button input{display:none}.choices{display:flex;gap:6px;flex-wrap:wrap}
 .choices button[aria-pressed="true"]{background:#234e61;color:white;border-color:#234e61}
 </style></head><body><main><h1>Photo review</h1>
-<p class="intro">Similar images, grouped for comparison. Review order uses a sharpness
-baseline, not a learned preference or an artistic-quality score. No originals are changed.
+<p class="intro">Similar images, grouped for comparison. """ + intro + """ No originals are changed.
 Choose Keep, Reject, or Unsure, then save labels before closing this page. The
 JSON stays on your computer; load it here to continue reviewing later.</p>
 <div class="toolbar"><button type="button" id="save-labels">Save labels JSON</button>
@@ -132,7 +139,7 @@ document.querySelector('#load-labels').addEventListener('change', async event =>
 </script></body></html>"""
     return page
 
-def write_report(folder, output, rows, errors):
+def write_report(folder, output, rows, errors, shuffle_seed=None):
     root = Path(folder)
     output = Path(output)
     thumbs = output / "thumbnails"
@@ -152,7 +159,11 @@ def write_report(folder, output, rows, errors):
         if thumbnail not in written:
             write_thumbnail(root / row["file"], thumbs / thumbnail)
             written.add(thumbnail)
-        grouped[row["group"]].append(image_card(row, thumbnail))
+        grouped[row["group"]].append(image_card(row, thumbnail, shuffle_seed is not None))
 
-    page = render_page(grouped, len(rows), len(errors))
+    if shuffle_seed is not None:
+        rng = Random(shuffle_seed)
+        for cards in grouped.values():
+            rng.shuffle(cards)
+    page = render_page(grouped, len(rows), len(errors), shuffle_seed is not None)
     (output / "index.html").write_text(page, encoding="utf-8")

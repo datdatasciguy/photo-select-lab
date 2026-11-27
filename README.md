@@ -21,6 +21,13 @@ JSON label table when you're done. Load that file to continue later; labels only
 apply when every filename and file digest matches the report. Nothing is sent
 to a server. The demo images are just generated shapes and colors.
 
+To collect initial labels without showing the sharpness order, run
+`python review.py examples/demo --output outputs/demo-shuffled --shuffle-seed 42`.
+The cards shuffle within each group, and the page hides displayed rank and
+image metrics while you choose. The saved labels still carry original ranks
+for validation. Filenames remain visible and may influence a decision; use
+separate shoots for training and held-out review.
+
 For another folder:
 
 ```bash
