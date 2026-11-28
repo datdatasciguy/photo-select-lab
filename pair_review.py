@@ -1,12 +1,14 @@
 import argparse
 import csv
 import hashlib
+import json
 import re
 from collections import defaultdict
 from html import escape
 from pathlib import Path
+from random import Random
 
-def make_pairs(report, max_opponents):
+def make_pairs(report, max_opponents, orientation_seed=None):
     with (report / "manifest.csv").open(encoding="utf-8", newline="") as stream:
         rows = list(csv.DictReader(stream))
     groups = defaultdict(list)
@@ -30,9 +32,15 @@ def make_pairs(report, max_opponents):
                           "group": group, "left": left, "right": other})
     if not pairs:
         raise ValueError("No groups have two distinct images to compare")
+    if orientation_seed is not None:
+        rng = Random(orientation_seed)
+        for pair in pairs:
+            if rng.random() < 0.5:
+                pair["left"], pair["right"] = pair["right"], pair["left"]
+        rng.shuffle(pairs)
     return pairs
 
-def render_page(pairs):
+def render_page(pairs, orientation_seed=None):
     cards = []
     for pair in pairs:
         sides = []
@@ -49,6 +57,9 @@ def render_page(pairs):
                      f'aria-label="Choose preferred image"><button data-choice="left">Left</button>'
                      f'<button data-choice="right">Right</button><button data-choice="tie">Tie</button>'
                      f'<button data-choice="unsure">Unsure</button></div></article>')
+    intro = ("Pair order and left/right placement are shuffled with a saved seed. "
+             "The first image is not always the baseline leader." if orientation_seed is not None else
+             "The first image is the existing review order's leader.")
     return """<!doctype html><html lang="en"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Photo pair review</title><style>
@@ -62,11 +73,11 @@ button,.load{font:inherit;border:1px solid #69818c;border-radius:6px;padding:7px
 button[aria-pressed=true]{background:#195e70;color:white}.load input{display:none}
 @media(max-width:650px){.images{grid-template-columns:1fr}img{height:230px}}
 </style><h1>Photo pair review</h1>
-<p>Pick the image you prefer in each pair, or choose Tie or Unsure. The pairs come from the same report group; the first image is the existing review order's leader. These are direct choices, separate from Keep/Reject labels. Files stay on your computer.</p>
+<p>Pick the image you prefer in each pair, or choose Tie or Unsure. The pairs come from the same report group. """ + intro + """ These are direct choices, separate from Keep/Reject labels. Files stay on your computer.</p>
 <div class="toolbar"><button id="save" type="button">Save votes JSON</button>
 <label class="load">Load votes JSON<input id="load" type="file" accept=".json,application/json"></label>
 <span id="status" role="status" aria-live="polite">No votes yet</span></div>
-""" + "".join(cards) + """<script>
+""" + "".join(cards) + "<script>\nconst orientationSeed = " + json.dumps(orientation_seed) + ";\n" + """
 const cards = [...document.querySelectorAll('.pair')];
 const status = document.querySelector('#status');
 const choices = new Set(['left', 'right', 'tie', 'unsure']);
@@ -86,7 +97,7 @@ document.querySelector('#save').addEventListener('click', () => {
   const rows = cards.map(card => ({id: card.dataset.id, group: Number(card.dataset.group),
     left_sha256: card.dataset.left, right_sha256: card.dataset.right,
     choice: card.dataset.choice || '', reviewed_at: card.dataset.reviewedAt || ''}));
-  const payload = {schema_version: 1, method: 'direct_pair_choice',
+  const payload = {schema_version: 1, method: 'direct_pair_choice', orientation_seed: orientationSeed,
     exported_at: new Date().toISOString(), rows};
   const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2) + '\\n'],
     {type: 'application/json'}));
@@ -100,6 +111,7 @@ document.querySelector('#load').addEventListener('change', async event => {
   try {
     const payload = JSON.parse(await file.text());
     if (payload.schema_version !== 1 || payload.method !== 'direct_pair_choice' ||
+        (payload.orientation_seed ?? null) !== orientationSeed ||
         !Array.isArray(payload.rows)) throw new Error('Unsupported votes file');
     const current = new Map(cards.map(card => [card.dataset.id, card]));
     const seen = new Set();
@@ -124,12 +136,17 @@ def main():
     parser.add_argument("report", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--max-opponents", type=int, default=4)
+    parser.add_argument("--orientation-seed", type=int,
+                        help="Shuffle pair order and left/right placement repeatably")
     args = parser.parse_args()
     report = args.report.resolve()
-    output = (args.output or report / "pair-review.html").resolve()
+    default_name = "pair-review-shuffled.html" if args.orientation_seed is not None else "pair-review.html"
+    output = (args.output or report / default_name).resolve()
     repo = Path(__file__).resolve().parent
     if not 1 <= args.max_opponents <= 20:
         parser.error("Choose 1 to 20 opponents per group")
+    if args.orientation_seed is not None and abs(args.orientation_seed) > 2**53 - 1:
+        parser.error("Orientation seed must fit an exact browser integer")
     if output.parent != report:
         parser.error("Save the page beside the report thumbnails")
     if output.is_relative_to(repo) and not any(output.is_relative_to(repo / name)
@@ -138,8 +155,8 @@ def main():
     if output.exists():
         parser.error("Choose a new output name to preserve the earlier review page")
     try:
-        pairs = make_pairs(report, args.max_opponents)
-        output.write_text(render_page(pairs), encoding="utf-8")
+        pairs = make_pairs(report, args.max_opponents, args.orientation_seed)
+        output.write_text(render_page(pairs, args.orientation_seed), encoding="utf-8")
     except (OSError, ValueError, KeyError) as error:
         parser.exit(2, f"{error}\n")
     print(f"{len(pairs)} comparisons: {output}")

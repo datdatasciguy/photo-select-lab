@@ -8,12 +8,17 @@ from pair_review import make_pairs
 from prepare_pairs import shoot_split
 
 def read_votes(shoot, report, votes, max_opponents):
-    pairs = make_pairs(Path(report), max_opponents)
-    expected = {pair["id"]: pair for pair in pairs}
     payload = json.loads(Path(votes).read_text(encoding="utf-8"))
     if (payload.get("schema_version") != 1 or payload.get("method") != "direct_pair_choice"
             or not isinstance(payload.get("rows"), list)):
         raise ValueError(f"{shoot}: unsupported direct-votes file")
+    orientation_seed = payload.get("orientation_seed")
+    if orientation_seed is not None and (isinstance(orientation_seed, bool)
+                                         or not isinstance(orientation_seed, int)
+                                         or abs(orientation_seed) > 2**53 - 1):
+        raise ValueError(f"{shoot}: invalid orientation seed")
+    pairs = make_pairs(Path(report), max_opponents, orientation_seed)
+    expected = {pair["id"]: pair for pair in pairs}
     choices = {}
     for row in payload["rows"]:
         if not isinstance(row, dict):
@@ -29,7 +34,7 @@ def read_votes(shoot, report, votes, max_opponents):
         choices[row["id"]] = choice
     if set(choices) != set(expected):
         raise ValueError(f"{shoot}: votes do not cover every comparison")
-    return pairs, choices
+    return pairs, choices, orientation_seed
 
 def prepare(shoots, validation_share=0.2, seed=42, max_opponents=4):
     if not 0 <= validation_share < 1:
@@ -42,6 +47,7 @@ def prepare(shoots, validation_share=0.2, seed=42, max_opponents=4):
     splits = {}
     image_splits = {}
     counts = {choice: 0 for choice in ("left", "right", "tie", "unsure", "")}
+    orientation_seeds = {}
     for shoot, report, votes in shoots:
         if not shoot.strip():
             raise ValueError("Shoot ID cannot be empty")
@@ -52,7 +58,8 @@ def prepare(shoots, validation_share=0.2, seed=42, max_opponents=4):
                 previous = image_splits.setdefault(row["sha256"], split)
                 if previous != split:
                     raise ValueError("An identical image appears in both train and validation shoots")
-        pairs, choices = read_votes(shoot, report, votes, max_opponents)
+        pairs, choices, orientation_seed = read_votes(shoot, report, votes, max_opponents)
+        orientation_seeds[shoot] = orientation_seed
         for pair in pairs:
             choice = choices[pair["id"]]
             counts[choice] += 1
@@ -69,6 +76,7 @@ def prepare(shoots, validation_share=0.2, seed=42, max_opponents=4):
             "created_at": datetime.now(timezone.utc).isoformat(),
             "validation_share": validation_share, "seed": seed,
             "max_opponents": max_opponents, "shoot_splits": splits,
+            "orientation_seeds": orientation_seeds,
             "vote_counts": counts,
             "train_pairs": sum(pair["split"] == "train" for pair in result),
             "validation_pairs": sum(pair["split"] == "validation" for pair in result),

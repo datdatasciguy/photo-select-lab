@@ -120,6 +120,12 @@ choices separately from the Keep/Reject labels above. It does not retrain the
 ranker automatically. Thumbnails and vote files can reveal private photos or
 filenames, so keep the report and votes local.
 
+For a repeatable review with randomized pair order and left/right placement,
+run `python pair_review.py outputs/demo --orientation-seed 42`. Open
+`outputs/demo/pair-review-shuffled.html`. The saved votes include the seed;
+`prepare_direct_pairs.py` reconstructs each displayed side before converting
+Left or Right into a preference. Older unshuffled vote files still work.
+
 When you have saved direct votes, turn them into ranker input with the same
 shoot IDs and whole-shoot split used above:
 
